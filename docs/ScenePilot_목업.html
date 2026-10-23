@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ScenePilot 화면 목업</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* 방향: 도로 표지판의 언어. 파랑=안내·행동, 노랑=주의, 빨강=응급, 초록=확인됨. 긴박한 상황에서도 읽히는 큰 글자와 높은 대비. */
+:root {
+  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --bg: #e9edf3; --surface: #ffffff; --surface-2: #f4f6fa; --ink: #121821; --ink-2: #4a5568; --line: #d5dbe5;
+  --blue: #1556c8; --on-blue: #ffffff; --blue-soft: #e5edfb;
+  --red: #c8281e; --on-red: #ffffff; --red-soft: #fdebe9; --red-line: #f0a9a3;
+  --amber: #f2b700; --amber-soft: #fff5d1; --amber-ink: #6a4d00; --amber-line: #ecd27a;
+  --green: #12804b; --green-soft: #e3f4eb; --green-line: #9ad4b6;
+  --bezel: #0c0f15; --cam: #0e1218;
+  --shadow: 0 1px 2px rgba(18, 24, 33, .06), 0 12px 32px -12px rgba(18, 24, 33, .28);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f15; --surface: #151b25; --surface-2: #1b2330; --ink: #e9edf4; --ink-2: #9aa6b9; --line: #2a3445;
+    --blue: #5b97ff; --on-blue: #0a1630; --blue-soft: #14223f;
+    --red: #e0392e; --on-red: #ffffff; --red-soft: #2b1614; --red-line: #6e2b27;
+    --amber: #ffca2b; --amber-soft: #2b2409; --amber-ink: #ffe08a; --amber-line: #6b5712;
+    --green: #4cd08a; --green-soft: #0f2a1d; --green-line: #1f6b45;
+    --bezel: #04060a; --cam: #06080c;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 14px 36px -12px rgba(0, 0, 0, .7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f15; --surface: #151b25; --surface-2: #1b2330; --ink: #e9edf4; --ink-2: #9aa6b9; --line: #2a3445;
+  --blue: #5b97ff; --on-blue: #0a1630; --blue-soft: #14223f;
+  --red: #e0392e; --on-red: #ffffff; --red-soft: #2b1614; --red-line: #6e2b27;
+  --amber: #ffca2b; --amber-soft: #2b2409; --amber-ink: #ffe08a; --amber-line: #6b5712;
+  --green: #4cd08a; --green-soft: #0f2a1d; --green-line: #1f6b45;
+  --bezel: #04060a; --cam: #06080c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 14px 36px -12px rgba(0, 0, 0, .7);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font); padding-inline: 20px; padding-block: 0 72px; }
+.wrap { max-width: 1120px; margin-inline: auto; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { text-wrap: balance; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; }
+
+/* ---------- 페이지 머리 ---------- */
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-block: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--blue); color: var(--on-blue); display: grid; place-items: center; }
+.theme-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; }
+.hero { display: grid; gap: 20px; padding-block: 28px 36px; max-width: 760px; }
+.hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.12; font-weight: 700; letter-spacing: -.02em; }
+.hero .lead { font-size: 19px; color: var(--ink-2); max-width: 60ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--ink-2); }
+.notice { display: flex; gap: 12px; align-items: flex-start; background: var(--amber-soft); border: 1px solid var(--amber-line); color: var(--amber-ink); border-radius: 12px; padding: 12px 14px; font-size: 15px; }
+.lane { height: 5px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--amber) 0 26px, transparent 26px 46px); }
+section { padding-block: 44px 8px; }
+.sec-head { display: grid; gap: 6px; margin-bottom: 24px; max-width: 64ch; }
+.sec-head h2 { font-size: clamp(24px, 3.6vw, 32px); line-height: 1.25; letter-spacing: -.01em; }
+.sec-head p { color: var(--ink-2); }
+
+/* ---------- 시연 영역 ---------- */
+.stage { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 36px; align-items: start; }
+.stepper { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stepper button { width: 100%; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; cursor: pointer; }
+.stepper button:hover { background: var(--surface); }
+.stepper .n { font-family: var(--mono); font-size: 12px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; color: var(--ink-2); }
+.stepper .on { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow); }
+.stepper .on .n { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+.stepper .done .n { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+.stepper .name { font-weight: 600; }
+.side { display: grid; gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 10px; }
+.panel h3 { font-size: 17px; }
+.who { display: grid; gap: 8px; }
+.who div { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: baseline; font-size: 15px; }
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .05em; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); white-space: nowrap; }
+.tag.rule { color: var(--blue); border-color: var(--blue); background: var(--blue-soft); }
+.tag.ai { color: var(--amber-ink); border-color: var(--amber-line); background: var(--amber-soft); }
+.tag.user { color: var(--green); border-color: var(--green-line); background: var(--green-soft); }
+.tag.built { color: var(--green); border-color: var(--green-line); }
+.tag.plan { color: var(--amber-ink); border-color: var(--amber-line); border-style: dashed; }
+.hint { font-size: 14px; color: var(--ink-2); }
+
+/* ---------- 폰 프레임 ---------- */
+.phone-slot { display: grid; justify-items: center; }
+.phone { width: 360px; height: 740px; border-radius: 46px; padding: 10px; background: var(--bezel); box-shadow: var(--shadow); flex: none; }
+.screen { height: 100%; border-radius: 36px; overflow: hidden; background: var(--surface-2); color: var(--ink); display: flex; flex-direction: column; position: relative; }
+.sbar { height: 30px; flex: none; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 22px 3px; font: 600 12px var(--mono); color: var(--ink); }
+.app-top { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px 6px 16px; flex: none; }
+.app-brand { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.app-brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--blue); color: var(--on-blue); display: grid; place-items: center; }
+.app-actions { display: flex; gap: 6px; }
+.round { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink); }
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 2px 16px 10px; flex: none; }
+.steps span { font-size: 11px; color: var(--ink-2); text-align: center; }
+.steps span::before { content: ""; display: block; height: 4px; border-radius: 2px; background: var(--line); margin-bottom: 4px; }
+.steps .d::before, .steps .n::before { background: var(--blue); }
+.steps .n { color: var(--ink); font-weight: 700; }
+.body { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding: 4px 16px 18px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.ico { width: 20px; height: 20px; flex: none; }
+.ico.sm { width: 16px; height: 16px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 10px; }
+.card h4 { margin: 0; font-size: 18px; line-height: 1.3; }
+.q { font-size: 21px; line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+.sub { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+.kicker { font: 600 12px var(--mono); letter-spacing: .05em; color: var(--ink-2); }
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 54px; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 17px; cursor: pointer; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+.btn.danger { background: var(--red); border-color: var(--red); color: var(--on-red); }
+.btn.ghost { min-height: 46px; font-size: 15px; font-weight: 500; color: var(--ink-2); }
+.btn[disabled] { opacity: .55; cursor: default; }
+.stack { display: grid; gap: 10px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.yn .btn { min-height: 64px; font-size: 20px; }
+.say { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 4px 4px 4px 14px; font-size: 15px; color: var(--ink-2); }
+.say > span:not(.round) { flex: 1; }
+.say .round { flex: none; border: 0; background: var(--blue); color: var(--on-blue); }
+.voice { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); background: var(--blue-soft); border-radius: 12px; padding: 10px 12px; }
+.voice b { color: var(--blue); font-weight: 600; }
+.bullets { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); display: grid; gap: 4px; }
+
+.emerg { border: 2px solid var(--red); background: var(--red-soft); padding: 0; overflow: hidden; gap: 0; }
+.emerg .tape { height: 10px; background: repeating-linear-gradient(-45deg, var(--amber) 0 12px, #14181f 12px 24px); }
+.emerg .in { padding: 16px; display: grid; gap: 12px; }
+.emerg h4 { color: var(--red); font-size: 22px; display: flex; align-items: center; gap: 8px; }
+.emerg ol { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 19px; font-weight: 600; line-height: 1.4; }
+
+.banner { border-radius: 12px; border: 1px solid; padding: 10px 12px; font-size: 14px; display: flex; gap: 8px; align-items: flex-start; line-height: 1.45; }
+.banner.warn { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber-ink); }
+.banner.ok { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+.banner.err { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
+
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.checklist li { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; font-size: 15px; color: var(--ink-2); min-height: 30px; }
+.checklist li.now { color: var(--ink); font-weight: 700; }
+.checklist .mk { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 12px; }
+.checklist .ok .mk { background: var(--green); border-color: var(--green); color: #fff; }
+.checklist .redo .mk { border-color: var(--amber); color: var(--amber-ink); background: var(--amber-soft); }
+.checklist .skip .mk { background: var(--surface-2); }
+.checklist small { font-size: 12px; color: var(--ink-2); }
+.group { font: 600 11px var(--mono); letter-spacing: .06em; color: var(--ink-2); margin-top: 4px; }
+
+/* 카메라 */
+.cam { background: var(--cam); color: #fff; flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.cam .view { position: relative; flex: 1; overflow: hidden; background: #1a2230; }
+.cam svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cam .blur svg.scene { filter: blur(7px); }
+.cam .top { position: absolute; left: 12px; right: 12px; top: 10px; display: flex; justify-content: space-between; gap: 8px; z-index: 2; }
+.cam .pill { background: rgba(10, 14, 20, .72); backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, .2); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: #fff; }
+.cam .guide { position: absolute; inset: 18% 9% 20% 9%; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(#fff, #fff) top left / 26px 3px no-repeat, linear-gradient(#fff, #fff) top left / 3px 26px no-repeat,
+    linear-gradient(#fff, #fff) top right / 26px 3px no-repeat, linear-gradient(#fff, #fff) top right / 3px 26px no-repeat,
+    linear-gradient(#fff, #fff) bottom left / 26px 3px no-repeat, linear-gradient(#fff, #fff) bottom left / 3px 26px no-repeat,
+    linear-gradient(#fff, #fff) bottom right / 26px 3px no-repeat, linear-gradient(#fff, #fff) bottom right / 3px 26px no-repeat; opacity: .85; }
+.cam .say-bar { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 2; background: rgba(10, 14, 20, .78); backdrop-filter: blur(4px); border-radius: 14px; padding: 10px 12px; font-size: 15px; font-weight: 500; line-height: 1.4; display: flex; gap: 8px; align-items: flex-start; }
+.cam .say-bar.retake { background: rgba(120, 82, 0, .92); border: 1px solid var(--amber); }
+.cam .ctrl { flex: none; padding: 12px 16px 18px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; background: var(--cam); }
+.shutter { width: 74px; height: 74px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.shutter::after { content: ""; width: 56px; height: 56px; border-radius: 50%; background: #fff; display: block; }
+.shutter[disabled] { opacity: .4; cursor: default; }
+.thumbs { display: flex; gap: 6px; }
+.thumbs i { width: 30px; height: 40px; border-radius: 6px; border: 1.5px solid rgba(255, 255, 255, .35); display: block; background: rgba(255, 255, 255, .08); }
+.thumbs i.ok { border-color: var(--green); background: var(--green); opacity: .9; }
+.thumbs i.now { border-color: #fff; }
+.cam .skip { justify-self: end; background: none; border: 0; color: #fff; opacity: .85; font-size: 15px; cursor: pointer; padding: 10px 4px; }
+.analyzing { position: absolute; inset: 0; z-index: 3; background: rgba(8, 11, 16, .72); display: grid; place-items: center; align-content: center; gap: 12px; text-align: center; padding: 24px; font-weight: 600; }
+.spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .25); border-top-color: #fff; animation: sp .8s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }
+
+.thumbph { height: 150px; border-radius: 12px; overflow: hidden; position: relative; background: #1a2230; }
+.thumbph svg { width: 100%; height: 100%; display: block; }
+
+/* 요약 */
+.sum h5 { margin: 0 0 4px; font-size: 15px; }
+.sum .it { padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.45; }
+.sum .it small { display: block; font-size: 12px; color: var(--ink-2); }
+.src { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
+.src.u { color: var(--green); border-color: var(--green-line); background: var(--green-soft); }
+.src.p { color: var(--blue); border-color: var(--blue); }
+.src.a { color: var(--amber-ink); border-color: var(--amber-line); background: var(--amber-soft); }
+.src.x { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+.src.s { color: var(--ink-2); }
+.example { font: 600 11px var(--mono); letter-spacing: .06em; color: var(--ink-2); }
+
+/* ---------- 전체 화면 ---------- */
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px 24px; }
+.g-item { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.g-frame { --s: .62; width: calc(360px * var(--s)); height: calc(740px * var(--s)); position: relative; }
+.g-frame .phone { transform: scale(var(--s)); transform-origin: top left; position: absolute; left: 0; top: 0; }
+.g-item h3 { font-size: 17px; }
+.g-item p { font-size: 14px; color: var(--ink-2); max-width: 34ch; }
+.g-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- 원칙 ---------- */
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.principles .panel p { font-size: 15px; color: var(--ink-2); }
+.legend { display: grid; gap: 10px; }
+.legend div { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; font-size: 15px; }
+.not-do { display: flex; flex-wrap: wrap; gap: 8px; }
+.not-do .chip { border-color: var(--red-line); color: var(--red); background: var(--red-soft); }
+footer { padding-top: 36px; color: var(--ink-2); font-size: 14px; display: grid; gap: 6px; }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .phone-slot { order: 1; } .side { order: 2; }
+  .legend div { grid-template-columns: 1fr; gap: 4px; }
+}
+@media (max-width: 420px) {
+  .phone { width: 100%; max-width: 360px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 17H3z"/><path d="M12 10v4"/><path d="M12 17.2v.1"/></svg></span>ScenePilot</div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="화면 테마 바꾸기">테마 전환</button>
+  </header>
+
+  <div class="hero">
+    <div class="meta">
+      <span class="chip mono">화면 목업 v0.1</span><span class="chip mono">2026-10-22</span><span class="chip">Nebius × NVIDIA 해커톤 · Best Apps and Agents</span>
+    </div>
+    <h1>사고 직후, 한 번에 한 가지만 안내합니다</h1>
+    <p class="lead">당황한 운전자에게 음성으로 해야 할 일을 하나씩 알려 주고, 증거 사진이 충분한지 확인하고, 출처가 붙은 접수용 요약을 만드는 모바일 웹 앱입니다. 과실, 수리비, 법적 책임은 판단하지 않습니다.</p>
+    <div class="notice"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 10v4"/><path d="M12 17.2v.1"/></svg><span>이 페이지는 <b>화면 시안</b>입니다. 사진과 AI 응답은 모두 예시이고 실제 모델을 호출하지 않습니다. <b>구현됨</b> 표시는 동작하는 앱에 있는 화면, <b>제안</b> 표시는 아직 만들지 않은 화면입니다.</span></div>
+  </div>
+  <div class="lane" role="presentation"></div>
+
+  <section aria-labelledby="try">
+    <div class="sec-head">
+      <h2 id="try">직접 눌러 보기</h2>
+      <p>화면 안의 버튼을 눌러 흐름을 따라가 보세요. 첫 질문에 "네"를 고르면 응급 안내가, 첫 사진은 일부러 흐리게 찍은 설정이라 재촬영 안내가 나옵니다.</p>
+    </div>
+    <div class="stage">
+      <div class="phone-slot"><div class="phone"><div class="screen" id="demo"></div></div></div>
+      <div class="side">
+        <div class="panel">
+          <h3>단계</h3>
+          <ol class="stepper" id="stepper"></ol>
+        </div>
+        <div class="panel" id="whoPanel"></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="all">
+    <div class="sec-head">
+      <h2 id="all">전체 화면</h2>
+      <p>사용자가 만나는 화면을 순서대로 모았습니다. 사진 속 장면은 일러스트이며 실제 사고 사진이 아닙니다.</p>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section aria-labelledby="rules">
+    <div class="sec-head">
+      <h2 id="rules">설계 원칙</h2>
+      <p>AI를 쓰는 곳과 규칙으로 정하는 곳을 나눈 이유입니다.</p>
+    </div>
+    <div class="principles">
+      <div class="panel"><h3>결정은 규칙이, 관찰은 AI가</h3><p>응급 판정, 단계 이동, 사진 통과 여부는 코드가 정합니다. AI(Nemotron VL)는 사진에서 보이는 것을 구조화해 알려 줄 뿐 단계를 바꾸지 못합니다.</p></div>
+      <div class="panel"><h3>모르면 위험 쪽으로</h3><p>부상이나 화재 질문에 답이 모호하면 "모름"으로 처리하고 응급 안내를 먼저 띄웁니다. 응급 안내를 확인하기 전에는 사진 촬영으로 넘어가지 않습니다.</p></div>
+      <div class="panel"><h3>사실과 추측을 분리</h3><p>요약의 모든 항목에 출처 태그가 붙습니다. AI가 읽은 값은 사용자가 확인하기 전까지 "미확인"이고, 찍지 못한 것은 "확인하지 못한 것"에 남습니다.</p></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h3>요약의 출처 태그</h3>
+      <div class="legend">
+        <div><span class="src u" style="margin:0">사용자 진술</span><span>사용자가 직접 말하거나 입력한 내용</span></div>
+        <div><span class="src p" style="margin:0">사진</span><span>촬영된 사진이 있는 항목</span></div>
+        <div><span class="src a" style="margin:0">AI 관찰, 검증 아님</span><span>AI가 사진에서 본 것. 참고용이며 틀릴 수 있음</span></div>
+        <div><span class="src x" style="margin:0">미확인</span><span>비어 있거나 아직 사용자가 확인하지 않은 값</span></div>
+        <div><span class="src s" style="margin:0">자동 기록</span><span>시각처럼 시스템이 기록한 값</span></div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h3>하지 않는 것</h3>
+      <div class="not-do"><span class="chip">과실 비율 판단</span><span class="chip">수리비·보험금 추정</span><span class="chip">법률 조언</span><span class="chip">의료 판단</span><span class="chip">통화 자동 녹음</span><span class="chip">보험사 시스템 연동</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="lane" role="presentation"></div>
+    <p>구현 현황과 남은 일은 저장소의 <span class="mono">docs/진행현황_20261021.md</span>에 있습니다. 이 목업은 팀 공유용 시안이며 제출 자료가 아닙니다.</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ---------- 아이콘 ---------- */
+const P = {
+  speaker: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/>',
+  restart: '<path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  alert: '<path d="M12 3l9 17H3z"/><path d="M12 10v4"/><path d="M12 17.2v.1"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+};
+const ico = (n, c = "") => `<svg class="ico ${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+
+/* ---------- 일러스트(실제 사진 아님) ---------- */
+const SCENES = {
+  wide: `<svg class="scene" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="320" height="360" fill="#9fc0e6"/><rect y="150" width="320" height="210" fill="#3a4250"/><rect y="120" width="320" height="34" fill="#c9d3dc"/><rect x="18" y="70" width="60" height="62" fill="#aab6c2"/><rect x="236" y="54" width="70" height="80" fill="#97a6b5"/><path d="M0 252h320" stroke="#f4f4f4" stroke-width="3" stroke-dasharray="22 16"/><g><rect x="46" y="196" width="112" height="46" rx="10" fill="#c8281e"/><rect x="62" y="182" width="66" height="26" rx="8" fill="#9db6cf"/><circle cx="72" cy="244" r="12" fill="#14181f"/><circle cx="134" cy="244" r="12" fill="#14181f"/></g><g transform="rotate(-6 220 220)"><rect x="170" y="186" width="116" height="46" rx="10" fill="#e9edf2"/><rect x="190" y="172" width="64" height="26" rx="8" fill="#9db6cf"/><circle cx="196" cy="234" r="12" fill="#14181f"/><circle cx="262" cy="234" r="12" fill="#14181f"/></g></svg>`,
+  plate: `<svg class="scene" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="320" height="360" fill="#3a4250"/><rect x="30" y="70" width="260" height="200" rx="26" fill="#e9edf2"/><rect x="50" y="96" width="220" height="40" rx="8" fill="#b9c4d0"/><rect x="92" y="186" width="136" height="44" rx="6" fill="#fff" stroke="#14181f" stroke-width="3"/><path d="M106 208h108" stroke="#aab4c0" stroke-width="8" stroke-dasharray="14 8"/><circle cx="62" cy="262" r="20" fill="#14181f"/><circle cx="258" cy="262" r="20" fill="#14181f"/></svg>`,
+  damage: `<svg class="scene" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="320" height="360" fill="#3a4250"/><path d="M40 120h240l20 90v60H20v-60z" fill="#c8281e"/><path d="M120 150l22 26-16 14 26 18-18 16 28 20" fill="none" stroke="#141820" stroke-width="5" stroke-linejoin="round"/><path d="M96 168l-34 10M210 176l40-10M206 214l44 12" stroke="#141820" stroke-width="4" stroke-linecap="round"/><rect x="70" y="236" width="180" height="26" rx="6" fill="#222a36"/></svg>`,
+};
+
+/* ---------- 공통 조각 ---------- */
+const STEP_LABELS = ["동의", "안전", "촬영", "정리", "요약"];
+const chrome = (step, body, { cam = false } = {}) => `
+  <div class="sbar"><span>14:32</span><span>5G</span></div>
+  <div class="app-top"><div class="app-brand"><i>${ico("alert", "sm")}</i>ScenePilot</div>
+    <div class="app-actions"><span class="round" aria-hidden="true">${ico("speaker", "sm")}</span><span class="round" aria-hidden="true">${ico("restart", "sm")}</span></div></div>
+  <div class="steps">${STEP_LABELS.map((l, i) => `<span class="${i < step ? "d" : i === step ? "n" : ""}">${l}</span>`).join("")}</div>
+  ${cam ? body : `<div class="body">${body}</div>`}`;
+
+const voice = (t) => `<div class="voice">${ico("speaker", "sm")}<span><b>음성 안내</b> ${t}</span></div>`;
+const Q = [
+  "다치신 분이 있나요? 본인, 동승자, 상대 차량 모두 포함입니다.",
+  "차에서 연기, 불꽃, 연료 냄새나 새는 액체가 보이거나 느껴지나요?",
+  "차를 안전한 곳으로 옮길 수 있나요?",
+  "사고 차량이 차로 한가운데나 고속도로, 커브길처럼 위험한 곳에 있나요?",
+];
+const ITEMS = [
+  { id: "wide", title: "사고 현장 전체", inst: "두 차량과 도로가 함께 보이게 찍어 주세요. 가능하면 20~30미터 뒤에서요.", scene: "wide" },
+  { id: "plate", title: "상대 차와 번호판", inst: "상대 차 전체와 번호판이 읽히게 가까이에서 찍어 주세요.", scene: "plate" },
+  { id: "damage", title: "손상 부위", inst: "손상된 부분을 가까이에서 선명하게 찍어 주세요.", scene: "damage" },
+];
+const OBS = [
+  ["차 두 대와 도로가 함께 보입니다.", "빨간색 차량 뒤쪽이 눌려 있습니다."],
+  ["상대 차 뒷부분이 보입니다.", "번호판 글자가 읽힙니다."],
+  ["범퍼가 찌그러져 있습니다.", "손상 부위가 선명하게 보입니다."],
+];
+
+/* ---------- 화면 ---------- */
+const S = {
+  consent: () => chrome(0, `
+    <div class="card"><div class="kicker">시작하기 전에</div>
+      <p class="q">사고 현장에서 해야 할 일을 안내하고 사진과 진술을 정리해 줍니다.</p>
+      <p class="sub">과실, 수리비, 법적 책임은 판단하지 않습니다. AI 관찰은 틀릴 수 있습니다.</p>
+      <ul class="bullets"><li>사진은 AI 분석을 위해 서버로 전송됩니다.</li><li>다쳤거나 위험하면 먼저 112·119에 전화하세요.</li></ul></div>
+    <button class="btn primary" data-act="consent">동의하고 시작</button>`),
+
+  safety: (q = 0) => chrome(1, `
+    <div class="card"><div class="kicker">안전 점검 ${q + 1}/4</div><p class="q">${Q[q]}</p>
+      <div class="stack yn"><button class="btn primary" data-act="ans" data-v="yes">네</button>
+        <div class="two"><button class="btn" data-act="ans" data-v="no">아니요</button><button class="btn" data-act="ans" data-v="unsure">모르겠어요</button></div></div></div>
+    <div class="say"><span>직접 말하기 또는 입력</span><span class="round" aria-hidden="true">${ico("mic", "sm")}</span></div>
+    ${voice(Q[q])}`),
+
+  emergency: (kind = "injury") => chrome(1, `
+    <div class="card emerg" role="alert"><div class="tape"></div><div class="in">
+      <h4>${ico("alert")}먼저 안전을 확인하세요</h4>
+      <ol>${kind === "fire"
+        ? "<li>차에서 떨어진 안전한 곳으로 먼저 대피하세요. 대피한 뒤 전화하세요.</li>"
+        : "<li>119에 전화해 다친 분이 있다고 알리세요. 통화 중 상담원의 안내를 따르세요.</li>"}</ol>
+      <div class="btn danger" role="button">${ico("phone")}${kind === "fire" ? "소방 119 전화" : "구급 119 전화"}</div></div></div>
+    <button class="btn primary" data-act="ack">확인했어요</button>
+    <p class="sub">전화를 걸었거나 안전을 확인한 뒤에 눌러 주세요. 이어서 촬영과 기록을 진행할 수 있습니다.</p>`),
+
+  camera: (o = {}) => {
+    const it = ITEMS[o.item ?? 0];
+    const slots = ITEMS.map((_, i) => `<i class="${i < (o.item ?? 0) ? "ok" : i === (o.item ?? 0) ? "now" : ""}"></i>`).join("");
+    const mid = o.retake ? `<div class="say-bar retake">${ico("alert", "sm")}<span>${o.retake}</span></div>` : `<div class="say-bar">${ico("speaker", "sm")}<span>${it.inst}</span></div>`;
+    return chrome(2, `<div class="cam"><div class="view ${o.blur ? "blur" : ""}">${SCENES[it.scene]}<div class="guide"></div>
+      <div class="top"><span class="pill">현장 핵심 ${(o.item ?? 0) + 1}/3 · ${it.title}</span></div>${mid}
+      ${o.busy ? `<div class="analyzing"><span class="spin"></span><span>AI가 사진을 보고 있어요</span></div>` : ""}</div>
+      <div class="ctrl"><div class="thumbs">${slots}</div><button class="shutter" data-act="shoot" aria-label="촬영" ${o.busy ? "disabled" : ""}></button><button class="skip" data-act="skip">건너뛰기</button></div></div>`, { cam: true });
+  },
+
+  result: (o = {}) => {
+    const it = ITEMS[o.item ?? 0];
+    const last = (o.item ?? 0) === 2;
+    return chrome(2, `
+    <div class="banner ok">${ico("check", "sm")}<span><b>사진이 통과했어요.</b></span></div>
+    <div class="card"><div class="kicker">${it.title}</div><div class="thumbph">${SCENES[it.scene]}</div>
+      <div><span class="src a" style="margin:0">AI 관찰, 검증 아님</span></div>
+      <ul class="bullets" style="color:var(--ink)">${OBS[o.item ?? 0].map((t) => `<li>${t}</li>`).join("")}</ul></div>
+    <button class="btn primary" data-act="next">${last ? "확인" : "다음 사진"}</button>`);
+  },
+
+  hub: () => chrome(3, `
+    <div class="card"><h4>${ico("check")} 현장 핵심 사진을 마쳤어요</h4>
+      <p class="q" style="font-size:19px">지금 요약을 만들어도 되고, 나머지는 안전해진 뒤에 이어서 해도 됩니다.</p>
+      <div class="stack"><button class="btn primary" data-act="to-summary">요약 만들기</button>
+        <button class="btn" data-act="to-photos">사진 더 찍기 (3장 남음)</button><button class="btn" data-act="to-info">정보·진술 입력</button></div></div>
+    <div class="card"><div class="group">현장 핵심</div>
+      <ul class="checklist"><li class="ok"><span class="mk">✓</span><span>사고 현장 전체</span><small>촬영됨</small></li><li class="ok"><span class="mk">✓</span><span>상대 차와 번호판</span><small>촬영됨</small></li><li class="ok"><span class="mk">✓</span><span>손상 부위</span><small>촬영됨</small></li></ul>
+      <div class="group">추가 (나중에 해도 돼요)</div>
+      <ul class="checklist"><li><span class="mk"></span><span>내 차 전체</span><small>대기</small></li><li><span class="mk"></span><span>도로 상태</span><small>대기</small></li><li><span class="mk"></span><span>상대 서류(선택)</span><small>대기</small></li></ul></div>`),
+
+  info: () => chrome(3, `
+    <div class="card"><h4>추가 기록</h4><p class="sub">비워 두면 '확인하지 못한 것'에 표시됩니다.</p>
+      <div class="say" style="min-height:84px;align-items:flex-start;padding-top:12px"><span>사고가 어떻게 일어났는지 본 대로 말해 주세요. 예: 신호 대기 중 뒤에서 부딪혔습니다.</span><span class="round">${ico("mic", "sm")}</span></div>
+      <div class="say"><span>상대 차량 번호</span></div><div class="say"><span>상대 보험사</span></div><div class="say"><span>목격자</span></div></div>
+    <button class="btn primary" data-act="to-summary">요약 보기</button><button class="btn ghost" data-act="to-hub">저장하고 돌아가기</button>`),
+
+  summary: (part = 0) => chrome(4, part === 0 ? `
+    <div class="example">예시 데이터</div>
+    <div class="card sum"><h4>접수용 요약</h4>
+      <p class="sub">항목마다 출처를 표시했습니다. 'AI 관찰'은 검증되지 않은 참고용입니다.</p>
+      <h5>부상·응급 여부</h5>
+      <div class="it"><small>다치신 분이 있나요?</small>아니오<span class="src u">사용자 진술</span></div>
+      <div class="it"><small>연기·연료 냄새가 있나요?</small>아니오<span class="src u">사용자 진술</span></div>
+      <h5 style="margin-top:8px">촬영 현황</h5>
+      <div class="it"><small>사고 현장 전체</small>촬영됨<span class="src p">사진</span></div>
+      <div class="it"><small>상대 차와 번호판</small>촬영됨<span class="src p">사진</span></div>
+      <h5 style="margin-top:8px">AI 관찰</h5>
+      <div class="it"><small>손상 부위 · 외관 손상</small>심해 보임<span class="src a">AI 관찰, 검증 아님</span></div></div>` : `
+    <div class="example">예시 데이터</div>
+    <div class="card sum"><h5>상대·목격자</h5>
+      <div class="it"><small>상대 차량 번호</small>12가3456 (확인 전)<span class="src x">미확인</span></div>
+      <h5 style="margin-top:8px">확인하지 못한 것</h5>
+      <ul class="bullets" style="color:var(--ink)"><li>사고 경위 진술</li><li>내 차 전체: 미촬영</li><li>상대 보험사, 연락처, 목격자</li></ul>
+      <div class="banner warn">${ico("alert", "sm")}<span>이 문서는 과실·수리비·법적 책임을 판단하지 않습니다. 최종 판단은 보험사와 전문가가 합니다.</span></div></div>
+    <div class="card"><button class="btn primary">${ico("copy")}요약 복사</button><div class="say"><span>보험사 접수 번호 입력</span></div><button class="btn">${ico("phone")}보험사에 전화</button></div>
+    <button class="btn">보완하기 (사진·정보 더하기)</button>`),
+};
+
+/* ---------- 화면 설명 ---------- */
+const META = {
+  consent: { name: "동의", who: [["rule", "고정 문구", "한계와 데이터 전송을 먼저 알립니다."]], built: true },
+  safety: { name: "안전 점검", who: [["rule", "규칙", "질문 순서와 답변 해석. 해석이 안 되면 다시 묻고, 두 번 모르면 '모름'으로 처리합니다."], ["ai", "제안", "자유 발화를 AI가 이해하는 기능(미구현). 규칙이 위험을 낮추지 못하게 제한합니다."]], built: true },
+  emergency: { name: "응급 안내", who: [["rule", "규칙", "부상·화재·모름이면 AI와 무관하게 먼저 표시합니다. AI는 관여하지 않습니다."]], built: true },
+  photos: { name: "사진 촬영", who: [["ai", "AI", "사진에서 장면 유형, 선명도, 번호판 읽힘, 손상 정도를 구조화해 관찰합니다."], ["rule", "규칙", "그 관찰로 통과 여부를 코드가 판정합니다. 금지 표현은 걸러냅니다."]], built: false },
+  hub: { name: "정리 (허브)", who: [["rule", "규칙", "핵심 3장을 마치면 요약, 사진 더 찍기, 정보 입력 중에서 고릅니다."]], built: true },
+  summary: { name: "요약", who: [["rule", "코드 템플릿", "구조와 문구는 코드가 채우고 출처 태그를 붙입니다."], ["ai", "AI 관찰", "사진에서 본 내용만 검증 아님 표시와 함께 들어갑니다."]], built: true },
+};
+
+/* ---------- 시연 상태기계 ---------- */
+const demo = { screen: "consent", q: 0, kind: "injury", item: 0, attempt: 0, busy: false, retake: null, done: new Set() };
+const SCRIPT = [ // 사진 항목별 시연 시나리오: 항목마다 첫 시도 결과
+  [{ ok: false, blur: true, msg: "초점을 맞춰 다시 찍어 주세요." }, { ok: true }],
+  [{ ok: false, msg: "번호판이 읽히지 않습니다. 번호판이 크게 나오게 가까이에서 다시 찍어 주세요." }, { ok: true }],
+  [{ ok: true }],
+];
+const $demo = document.getElementById("demo");
+
+function stageKey() {
+  const s = demo.screen;
+  return s === "camera" || s === "result" ? "photos" : s;
+}
+function viewDemo() {
+  const s = demo.screen;
+  if (s === "safety") return S.safety(demo.q);
+  if (s === "emergency") return S.emergency(demo.kind);
+  if (s === "camera") return S.camera({ item: demo.item, retake: demo.retake, busy: demo.busy, blur: demo.retake && demo.blurShot });
+  if (s === "result") return S.result({ item: demo.item });
+  return S[s]();
+}
+function renderDemo() {
+  $demo.innerHTML = viewDemo();
+  const body = $demo.querySelector(".body"); if (body) body.scrollTop = 0;
+  renderSide();
+}
+const JUMP = [
+  ["consent", "동의", () => ({ screen: "consent" })],
+  ["safety", "안전 점검", () => ({ screen: "safety", q: 0 })],
+  ["emergency", "응급 안내", () => ({ screen: "emergency", kind: "injury" })],
+  ["photos", "사진 촬영", () => ({ screen: "camera", item: 0, attempt: 0, retake: null })],
+  ["hub", "정리 (허브)", () => ({ screen: "hub" })],
+  ["summary", "요약", () => ({ screen: "summary" })],
+];
+function renderSide() {
+  const key = stageKey();
+  const order = JUMP.map((j) => j[0]);
+  const idx = order.indexOf(key);
+  document.getElementById("stepper").innerHTML = JUMP.map(([k, label], i) =>
+    `<li><button type="button" data-jump="${k}" class="${i === idx ? "on" : i < idx ? "done" : ""}" ${i === idx ? 'aria-current="step"' : ""}><span class="n">${i + 1}</span><span class="name">${label}</span><span class="tag ${META[k].built ? "built" : "plan"}">${k === "photos" ? "일부 제안" : META[k].built ? "구현됨" : "제안"}</span></button></li>`).join("");
+  const m = META[key];
+  const note = key === "photos" ? `<p class="hint">이 시안은 앱 안에서 바로 찍는 카메라(제안)입니다. 현재 구현은 '사진 찍기'를 누르면 기본 카메라 앱이 열립니다.</p>` : "";
+  document.getElementById("whoPanel").innerHTML = `<h3>${m.name}: 누가 판단하나</h3><div class="who">${m.who.map(([t, l, d]) => `<div><span class="tag ${t}">${l}</span><span>${d}</span></div>`).join("")}</div>${note}`;
+}
+$demo.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
+  const a = b.dataset.act;
+  if (a === "consent") demo.screen = "safety", demo.q = 0;
+  else if (a === "ans") {
+    const v = b.dataset.v;
+    if (demo.q <= 1 && v !== "no") { demo.kind = demo.q === 0 ? "injury" : "fire"; demo.screen = "emergency"; }
+    else nextQ();
+  } else if (a === "ack") nextQ();
+  else if (a === "shoot") return shoot();
+  else if (a === "skip") return afterPhoto();
+  else if (a === "next") return afterPhoto();
+  else if (a === "to-summary") demo.screen = "summary";
+  else if (a === "to-hub") demo.screen = "hub";
+  else if (a === "to-photos" || a === "to-info") demo.screen = a === "to-info" ? "info" : "camera", demo.item = 0, demo.attempt = 3, demo.retake = null;
+  renderDemo();
+});
+function nextQ() {
+  if (demo.screen === "emergency") demo.screen = "safety";
+  if (demo.q < 3) { demo.q += 1; demo.screen = "safety"; }
+  else { demo.screen = "camera"; demo.item = 0; demo.attempt = 0; demo.retake = null; }
+}
+function shoot() {
+  demo.busy = true; renderDemo();
+  setTimeout(() => {
+    demo.busy = false;
+    const r = SCRIPT[demo.item][Math.min(demo.attempt, SCRIPT[demo.item].length - 1)];
+    demo.attempt += 1;
+    if (r.ok) { demo.screen = "result"; demo.retake = null; }
+    else { demo.retake = r.msg; demo.blurShot = !!r.blur; }
+    renderDemo();
+  }, 1100);
+}
+function afterPhoto() {
+  if (demo.item < 2) { demo.item += 1; demo.attempt = 0; demo.retake = null; demo.screen = "camera"; }
+  else demo.screen = "hub";
+  renderDemo();
+}
+document.getElementById("stepper").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-jump]"); if (!b) return;
+  Object.assign(demo, { q: 0, kind: "injury", item: 0, attempt: 0, retake: null, busy: false, blurShot: false }, JUMP.find((j) => j[0] === b.dataset.jump)[2]());
+  renderDemo();
+});
+
+/* ---------- 전체 화면 갤러리 ---------- */
+const GALLERY = [
+  { t: "동의", d: "한계와 데이터 전송을 알리고 시작합니다.", v: () => S.consent(), tags: [["rule", "규칙"], ["built", "구현됨"]] },
+  { t: "안전 점검", d: "한 화면에 질문 하나. 큰 버튼으로 한 손 조작.", v: () => S.safety(0), tags: [["rule", "규칙"], ["built", "구현됨"]] },
+  { t: "응급 안내", d: "부상·화재 신호는 사진보다 먼저, 전화 버튼과 함께.", v: () => S.emergency("injury"), tags: [["rule", "규칙"], ["built", "구현됨"]] },
+  { t: "앱 안 카메라", d: "카메라 앱으로 나가지 않고 이 화면에서 연속 촬영. 찍고 나면 바로 다음 안내로 넘어갑니다.", v: () => S.camera({ item: 0 }), tags: [["ai", "AI"], ["plan", "제안"]] },
+  { t: "다시 찍기 안내", d: "흐리거나 번호판이 안 읽히면 이유와 방법을 한 문장으로.", v: () => S.camera({ item: 0, retake: "초점을 맞춰 다시 찍어 주세요.", blur: true }), tags: [["ai", "AI"], ["rule", "규칙"], ["plan", "제안"]] },
+  { t: "사진 통과", d: "AI가 본 것을 '검증 아님' 표시와 함께 보여 줍니다.", v: () => S.result({ item: 0 }), tags: [["ai", "AI"], ["built", "구현됨"]] },
+  { t: "허브: 현장 마무리", d: "핵심 3장이 끝나면 바로 요약하거나 나중에 이어서 합니다.", v: () => S.hub(), tags: [["rule", "규칙"], ["built", "구현됨"]] },
+  { t: "정보·진술 입력", d: "말로 입력하면 AI가 정리하는 흐름을 제안합니다.", v: () => S.info(), tags: [["user", "사용자"], ["plan", "음성 입력 제안"]] },
+  { t: "요약 (1)", d: "항목마다 출처 태그. AI 관찰은 따로 모읍니다.", v: () => S.summary(0), tags: [["rule", "코드 템플릿"], ["built", "구현됨"]] },
+  { t: "요약 (2)", d: "확인하지 못한 것과 고지문, 복사·전화 버튼.", v: () => S.summary(1), tags: [["rule", "코드 템플릿"], ["built", "구현됨"]] },
+];
+document.getElementById("gallery").innerHTML = GALLERY.map((g) => `
+  <article class="g-item"><div class="g-frame"><div class="phone"><div class="screen" inert>${g.v()}</div></div></div>
+    <div class="g-tags">${g.tags.map(([c, l]) => `<span class="tag ${c}">${l}</span>`).join("")}</div>
+    <h3>${g.t}</h3><p>${g.d}</p></article>`).join("");
+
+/* ---------- 테마 ---------- */
+const themeBtn = document.getElementById("themeBtn");
+themeBtn.addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+});
+
+renderDemo();
+</script>
+</body>
+</html>

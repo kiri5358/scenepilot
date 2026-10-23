@@ -1,0 +1,186 @@
+/* ScenePilot UI. Direction: the language of road signs.
+   Blue = guidance and action, yellow = caution, red = emergency, green = confirmed. Large type and high contrast that stay readable under stress. */
+:root {
+  --font: "IBM Plex Sans", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --bg: #eef1f6; --surface: #ffffff; --ink: #121821; --ink-2: #4a5568; --line: #d5dbe5;
+  --blue: #1556c8; --on-blue: #ffffff; --blue-soft: #e5edfb;
+  --red: #c8281e; --red-soft: #fdebe9; --red-line: #f0a9a3;
+  --amber: #f2b700; --amber-soft: #fff5d1; --amber-ink: #6a4d00; --amber-line: #ecd27a;
+  --green: #12804b; --green-soft: #e3f4eb; --green-line: #9ad4b6;
+  --shadow: 0 1px 2px rgba(18, 24, 33, .05), 0 8px 24px -14px rgba(18, 24, 33, .3);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c1017; --surface: #151b25; --ink: #e9edf4; --ink-2: #9aa6b9; --line: #2a3445;
+    --blue: #5b97ff; --on-blue: #0a1630; --blue-soft: #14223f;
+    --red: #e0392e; --red-soft: #2b1614; --red-line: #6e2b27;
+    --amber: #ffca2b; --amber-soft: #2b2409; --amber-ink: #ffe08a; --amber-line: #6b5712;
+    --green: #4cd08a; --green-soft: #0f2a1d; --green-line: #1f6b45;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -14px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 17px/1.55 var(--font);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+h1, h2, h3, p { margin: 0; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.hidden { display: none; }
+.ico { width: 20px; height: 20px; flex: none; }
+.ico.sm { width: 16px; height: 16px; }
+
+/* ---------- Header and progress ---------- */
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 4px; max-width: 560px; margin: 0 auto;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+.brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--blue); color: var(--on-blue); display: grid; place-items: center; }
+.brand-sub { font-weight: 400; font-size: 13px; color: var(--ink-2); }
+.top-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); display: grid; place-items: center; cursor: pointer;
+}
+.icon-btn[aria-pressed="false"] { color: var(--ink-2); opacity: .6; }
+
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 10px 16px 4px; max-width: 560px; margin: 0 auto; }
+.step { text-align: center; font-size: 12px; color: var(--ink-2); }
+.step::before { content: ""; display: block; height: 5px; border-radius: 3px; background: var(--line); margin-bottom: 5px; }
+.step.done::before, .step.now::before { background: var(--blue); }
+.step.now { color: var(--ink); font-weight: 700; }
+
+main { padding: 12px 16px 120px; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+/* ---------- Cards and text ---------- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+.card > * + * { margin-top: 10px; }
+.card.stack > * + * { margin-top: 0; }
+.card h2 { font-size: 19px; line-height: 1.3; display: flex; align-items: center; gap: 8px; }
+.lead { font-size: 21px; line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+.muted { color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+.kicker { font: 600 12px var(--mono); letter-spacing: .05em; color: var(--ink-2); }
+ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+
+/* ---------- Buttons and inputs ---------- */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 54px;
+  padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-weight: 600; font-size: 17px; cursor: pointer; text-decoration: none;
+}
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+.btn.danger { background: #c8281e; border-color: #c8281e; color: #fff; min-height: 58px; font-size: 18px; }
+.btn.big { min-height: 64px; font-size: 20px; }
+.btn.small { min-height: 46px; font-size: 15px; width: auto; padding: 8px 16px; }
+.btn.ghost { color: var(--ink-2); font-weight: 500; }
+.btn[disabled] { opacity: .55; cursor: not-allowed; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row > input { flex: 1; min-width: 0; }
+
+input[type=text], input[type=tel], select, textarea {
+  width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); font-size: 16px;
+}
+input::placeholder, textarea::placeholder { color: var(--ink-2); opacity: .8; }
+textarea { min-height: 104px; resize: vertical; }
+label { display: block; font-size: 14px; font-weight: 600; margin: 10px 0 4px; }
+
+/* ---------- Banners ---------- */
+.banner { border-radius: 12px; border: 1px solid; padding: 10px 12px; font-size: 15px; line-height: 1.45; display: flex; gap: 8px; align-items: flex-start; }
+.banner > div { min-width: 0; }
+.banner.error { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
+.banner.warn { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber-ink); }
+.banner.ok { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+
+/* ---------- Emergency card: reflective tape band ---------- */
+.emergency { border: 2px solid var(--red); background: var(--red-soft); padding: 0; overflow: hidden; }
+.emergency > * + * { margin-top: 0; }
+.emergency .tape { height: 11px; background: repeating-linear-gradient(-45deg, var(--amber) 0 12px, #14181f 12px 24px); }
+.emergency .in { padding: 16px; display: grid; gap: 12px; }
+.emergency h2 { color: var(--red); font-size: 23px; }
+.emergency ol { margin: 0; padding-left: 24px; display: grid; gap: 8px; font-size: 20px; font-weight: 600; line-height: 1.4; }
+
+/* ---------- Photo checklist ---------- */
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.checklist li { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; font-size: 16px; color: var(--ink-2); min-height: 32px; }
+.checklist li.current { color: var(--ink); font-weight: 700; }
+.checklist .mark { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 12px; line-height: 1; }
+.checklist .st { font-size: 13px; }
+.checklist li.s-captured .mark { background: var(--green); border-color: var(--green); color: #fff; }
+.checklist li.s-needs_retake .mark { background: var(--amber-soft); border-color: var(--amber); color: var(--amber-ink); }
+.checklist li.s-skipped .mark { background: var(--bg); }
+.group { font: 600 11px var(--mono); letter-spacing: .06em; color: var(--ink-2); }
+
+/* ---------- Source badges ---------- */
+.badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.badge.user_statement { color: var(--green); border-color: var(--green-line); background: var(--green-soft); }
+.badge.photo { color: var(--blue); border-color: var(--blue); }
+.badge.ai_observation { color: var(--amber-ink); border-color: var(--amber-line); background: var(--amber-soft); }
+.badge.unconfirmed { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+.badge.system { color: var(--ink-2); }
+
+/* ---------- Summary ---------- */
+.sum-sec + .sum-sec { margin-top: 16px; }
+.sum-sec h3 { font-size: 16px; margin: 0 0 4px; }
+.sum-item { padding: 9px 0; border-top: 1px solid var(--line); font-size: 16px; line-height: 1.45; }
+.sum-item .lab { color: var(--ink-2); font-size: 13px; display: block; }
+.sum-item .badge { margin-left: 6px; vertical-align: 1px; }
+
+/* ---------- Working ---------- */
+.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.busy { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+.busy > * + * { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+
+/* ---------- Guidance steps ---------- */
+.steps-list { margin: 0; padding-left: 24px; display: grid; gap: 8px; color: var(--ink-2); font-size: 16px; }
+.steps-list li.current { color: var(--ink); font-weight: 700; }
+.steps-list li.done { opacity: .6; }
+
+@media (max-width: 420px) { .brand-sub { display: none; } }
+
+a { color: var(--blue); }
+.btn, .btn:visited { text-decoration: none; }
+.muted a { word-break: break-word; }
+
+/* ---------- Voice answers ---------- */
+.listenbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -10px 28px -14px rgba(0, 0, 0, .35); }
+.listenbar[hidden] { display: none; }
+.listen-row { max-width: 560px; margin: 0 auto; display: flex; gap: 12px; align-items: center; }
+.listen-text { flex: 1; min-width: 0; }
+.listen-title { font-weight: 700; }
+.listen-transcript { font-size: 16px; word-break: break-word; }
+.mic-dot { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); flex: none; }
+.mic-dot.live { background: #c8281e; color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(200, 40, 30, .22); } }
+@media (prefers-reduced-motion: reduce) { .mic-dot.live { animation: none; } }
+.icon-btn[hidden] { display: none; }
+
+/* Korean reading aid (?ko): the Korean meaning sits under each English line */
+.kw { display: block; }
+.btn .kw { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.ko { display: block; margin-top: 3px; font: 400 13px/1.4 var(--font); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+.btn.primary .ko, .btn.danger .ko { color: inherit; opacity: .85; }
+.kicker .ko { font-family: var(--font); }
+.step .ko { font-size: 10px; }
+.ko-legend { font-weight: 400; margin: 8px 16px 0; padding: 10px 12px; border: 1px dashed var(--amber-line); border-radius: 10px; background: var(--amber-soft); color: var(--amber-ink); font-size: 13px; line-height: 1.5; }
+.ko-legend .ko-icons { margin-top: 4px; opacity: .9; }
+
+/* Ask a question */
+.qa { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.qa .q { font-weight: 600; }
+.qa .a { white-space: pre-line; margin: 6px 0 0; line-height: 1.5; }
+.qa .src { margin-top: 6px; }
+.ask-note { margin-top: 8px; }

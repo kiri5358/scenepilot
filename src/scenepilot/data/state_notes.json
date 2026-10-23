@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "retrieved": "2026-10-22",
+  "disclaimer": "Plain-language summaries of state statutes, for general information only. Not legal advice. The wording is a draft that the team has not yet checked line by line against the statute text.",
+  "reviewed": false,
+  "states": {
+    "FL": {
+      "name": "Florida",
+      "notes": [
+        {
+          "id": "report",
+          "ui": true,
+          "title": "When to report",
+          "text": "In Florida, report the crash right away if anyone is hurt or killed, or if damage to a vehicle or other property looks like $2,000 or more. Report to the local police, the sheriff's office, or the nearest Florida Highway Patrol office.",
+          "sources": [
+            {
+              "title": "Fla. Stat. 316.065, Crashes; reports; penalties",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.065.html",
+              "version": "2026 Florida Statutes (last amended ch. 2026-39)"
+            }
+          ]
+        },
+        {
+          "id": "stop_exchange",
+          "ui": true,
+          "title": "Stop and share information",
+          "text": "Stop at the scene and stay until you have given your name, address, and vehicle registration number to the other driver or anyone injured. Show your driver license if asked. Give reasonable help to anyone who is hurt.",
+          "sources": [
+            {
+              "title": "Fla. Stat. 316.061, Crashes involving damage to vehicle or property",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.061.html",
+              "version": "2026 Florida Statutes (last amended ch. 2025-14)"
+            },
+            {
+              "title": "Fla. Stat. 316.062, Duty to give information and render aid",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.062.html",
+              "version": "2026 Florida Statutes (last amended ch. 2019-101)"
+            }
+          ]
+        },
+        {
+          "id": "no_one_there",
+          "ui": true,
+          "title": "If no one is there",
+          "text": "If no one is there to receive your information and no officer is present, report the crash to the nearest police office as soon as you can.",
+          "sources": [
+            {
+              "title": "Fla. Stat. 316.062, Duty to give information and render aid",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.062.html",
+              "version": "2026 Florida Statutes (last amended ch. 2019-101)"
+            }
+          ]
+        },
+        {
+          "id": "blocking",
+          "ui": true,
+          "title": "Vehicles blocking traffic",
+          "text": "If a damaged vehicle is blocking traffic, make reasonable efforts to move it or have it moved.",
+          "sources": [
+            {
+              "title": "Fla. Stat. 316.061, Crashes involving damage to vehicle or property",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.061.html",
+              "version": "2026 Florida Statutes (last amended ch. 2025-14)"
+            }
+          ]
+        },
+        {
+          "id": "leaving",
+          "ui": true,
+          "title": "Leaving the scene",
+          "text": "In Florida, leaving the scene of a crash that caused only property damage is a second-degree misdemeanor.",
+          "sources": [
+            {
+              "title": "Fla. Stat. 316.061, Crashes involving damage to vehicle or property",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.061.html",
+              "version": "2026 Florida Statutes (last amended ch. 2025-14)"
+            }
+          ]
+        },
+        {
+          "id": "recording",
+          "ui": false,
+          "title": "Recording conversations (not shown in the app yet)",
+          "text": "Florida's interception law generally allows recording a communication when all of the parties have given prior consent. Illegal interception is a third-degree felony.",
+          "sources": [
+            {
+              "title": "Fla. Stat. 934.03, Interception and disclosure of communications",
+              "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0900-0999/0934/Sections/0934.03.html",
+              "version": "2026 Florida Statutes (the definition of oral communication in s. 934.02 was not checked)"
+            }
+          ]
+        }
+      ]
+    },
+    "NY": {
+      "name": "New York",
+      "notes": [
+        {
+          "id": "report",
+          "ui": true,
+          "title": "When to report",
+          "text": "In New York, each driver must send a written report to the DMV within 10 days if anyone was hurt or killed, or if damage to any one person's property was more than $1,000.",
+          "sources": [
+            {
+              "title": "N.Y. Vehicle and Traffic Law 605, Report required upon accident",
+              "url": "https://www.nysenate.gov/legislation/laws/VAT/605",
+              "version": "Revision dated 2025-07-18"
+            }
+          ]
+        },
+        {
+          "id": "stop_exchange",
+          "ui": true,
+          "title": "Stop and share information",
+          "text": "Stop and show your license and insurance ID card. Give your name, address, insurer, policy details, and license number to the other driver or the property owner.",
+          "sources": [
+            {
+              "title": "N.Y. Vehicle and Traffic Law 600, Leaving the scene of an incident without reporting",
+              "url": "https://www.nysenate.gov/legislation/laws/VAT/600",
+              "version": "Revision dated 2022-11-04"
+            }
+          ]
+        },
+        {
+          "id": "no_one_there",
+          "ui": true,
+          "title": "If the owner is not there",
+          "text": "If the property owner is not there, report the crash to the nearest police station or a judicial officer as soon as you are physically able.",
+          "sources": [
+            {
+              "title": "N.Y. Vehicle and Traffic Law 600, Leaving the scene of an incident without reporting",
+              "url": "https://www.nysenate.gov/legislation/laws/VAT/600",
+              "version": "Revision dated 2022-11-04"
+            }
+          ]
+        },
+        {
+          "id": "injury",
+          "ui": true,
+          "title": "If you injure someone",
+          "text": "If you injure someone, give the same information to the injured person if practical, and to a police officer. If no officer is nearby, report to the nearest police station as soon as you can.",
+          "sources": [
+            {
+              "title": "N.Y. Vehicle and Traffic Law 600, Leaving the scene of an incident without reporting",
+              "url": "https://www.nysenate.gov/legislation/laws/VAT/600",
+              "version": "Revision dated 2022-11-04"
+            }
+          ]
+        },
+        {
+          "id": "leaving",
+          "ui": true,
+          "title": "Leaving the scene",
+          "text": "In New York, leaving the scene after damaging property is a traffic infraction. After injuring someone it can be a misdemeanor or a felony.",
+          "sources": [
+            {
+              "title": "N.Y. Vehicle and Traffic Law 600, Leaving the scene of an incident without reporting",
+              "url": "https://www.nysenate.gov/legislation/laws/VAT/600",
+              "version": "Revision dated 2022-11-04"
+            }
+          ]
+        },
+        {
+          "id": "recording",
+          "ui": false,
+          "title": "Recording conversations (not shown in the app yet)",
+          "text": "New York defines eavesdropping on a conversation as overhearing or recording it, by someone who is not present, without the consent of at least one party. Eavesdropping is a class E felony.",
+          "sources": [
+            {
+              "title": "N.Y. Penal Law 250.00, Eavesdropping definitions",
+              "url": "https://www.nysenate.gov/legislation/laws/PEN/250.00",
+              "version": "Revision dated 2014-09-22"
+            },
+            {
+              "title": "N.Y. Penal Law 250.05, Eavesdropping",
+              "url": "https://www.nysenate.gov/legislation/laws/PEN/250.05",
+              "version": "Revision dated 2014-09-22"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

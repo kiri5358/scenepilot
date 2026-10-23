@@ -1,0 +1,8 @@
+.env
+.venv
+.idea
+.git
+__pycache__
+eval
+tests
+ScenePilot_인계
