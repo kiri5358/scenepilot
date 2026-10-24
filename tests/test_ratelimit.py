@@ -84,17 +84,6 @@ def test_forged_header_does_not_get_a_fresh_allowance(monkeypatch):
     assert r.status_code == 429
 
 
-def test_temporary_diagnostic_header_is_stable_per_caller_and_hides_the_address(monkeypatch):
-    monkeypatch.setenv("SCENEPILOT_PROXY_HOPS", "1")
-    a1 = client.post("/api/sessions", headers={"X-Forwarded-For": "6.6.6.6, 1.2.3.4"})
-    a2 = client.post("/api/sessions", headers={"X-Forwarded-For": "5.5.5.5, 1.2.3.4"})  # only the forged part differs
-    b = client.post("/api/sessions", headers={"X-Forwarded-For": "6.6.6.6, 1.2.3.5"})
-    assert a1.headers["X-RateLimit-Key"] == a2.headers["X-RateLimit-Key"] != b.headers["X-RateLimit-Key"]
-    assert a1.headers["X-RateLimit-Xff-Count"] == "2"
-    assert "1.2.3.4" not in str(a1.headers)
-    assert "X-RateLimit-Key" not in client.get("/health").headers  # only /api responses carry it
-
-
 def test_sessions_are_limited_with_a_friendly_message(monkeypatch):
     monkeypatch.setitem(ratelimit.LIMITERS, "session", RateLimiter(2))
     assert client.post("/api/sessions").status_code == 200

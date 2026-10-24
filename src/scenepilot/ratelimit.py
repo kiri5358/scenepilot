@@ -5,9 +5,7 @@ one address from hammering the paid model. Counters live in memory (one instance
 """
 from __future__ import annotations
 
-import hmac
 import os
-import secrets
 import time
 from collections import deque
 from collections.abc import Callable
@@ -77,20 +75,6 @@ def client_ip(request: Request) -> str:
         if len(parts) >= hops:
             return parts[-hops]
     return request.client.host if request.client else "unknown"
-
-
-# TEMPORARY diagnostics: lets us see from outside whether one caller always gets the same rate-limit key behind the proxy.
-# Remove this block, the middleware in app.py and its test once SCENEPILOT_PROXY_HOPS has been checked.
-_DIAG_SALT = secrets.token_bytes(16)  # new on every start, so the value cannot be turned back into an address
-
-
-def diagnostic_headers(request: Request) -> dict[str, str]:
-    key = client_ip(request)
-    parts = [p for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    return {
-        "X-RateLimit-Key": hmac.new(_DIAG_SALT, key.encode(), "sha256").hexdigest()[:8],
-        "X-RateLimit-Xff-Count": str(len(parts)),
-    }
 
 
 def enforce(request: Request, name: str) -> None:
