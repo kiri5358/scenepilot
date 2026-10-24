@@ -71,7 +71,7 @@ After the general steps the app asks which state the accident happened in. (For 
 
 ### Android app
 
-[android-app/](android-app/README.md) wraps the same web UI in an Android app (Capacitor), so the microphone and location permissions belong to the app instead of a web address and no HTTPS is needed for them. The web code is not changed and can still be submitted on its own. Not yet run on a real phone.
+[android-app/](android-app/README.md) wraps the same web UI in an Android app (Capacitor), so the microphone and location permissions belong to the app instead of a web address and no HTTPS is needed for them. The web code is not changed and can still be submitted on its own. It has been installed and opened on a real phone (Galaxy S25); detailed testing of voice, location and permissions on the phone is still to do.
 
 ### Korean reading aid for testers
 
@@ -91,7 +91,7 @@ The location lookup **starts as soon as the app opens** (and again for a new acc
 ## What is not built yet
 
 - A speech-to-text engine of our own. Voice answers use the browser's built-in recognizer today (see below). An NVIDIA speech model (for example Parakeet or Nemotron ASR, behind our own server) is a possible replacement, not built.
-- Spoken playback uses the browser's text-to-speech; an NVIDIA text-to-speech model (Magpie) is not used yet.
+- Spoken playback of free-question answers and any other text that is not one of the fixed sentences uses the device voice. Only the fixed sentences (about 60) are NVIDIA Magpie TTS audio, made ahead of time; there is no run-time NVIDIA speech model.
 - State notes exist only for Florida and New York (see below). Other states get the general guidance.
 - Accounts. The optional "My info" card (vehicle, insurance, emergency contact, home state) is kept on the phone only; the server never sees it. The home state only pre-selects the state button when the accident happens in the same state.
 - Recording the other driver. This needs legal review and is not planned for the demo.

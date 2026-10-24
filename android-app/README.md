@@ -38,4 +38,4 @@ npx cap open android                                           # opens Android S
 
 - **Cleartext HTTP is allowed** (`usesCleartextTraffic` in the manifest and `allowMixedContent`) so the app can reach a server on the local network. Remove both and use an `https://` server address before releasing.
 - The app asks for microphone, location and camera at first use. Consent is remembered inside the app like in the browser.
-- **Checked here:** the build script, the manifest permissions, the CORS switch and the speech adapter against a fake plugin. **Not checked:** a real phone (no Android SDK on the build machine yet).
+- **Checked:** the build script, the manifest permissions, the CORS switch and the speech adapter against a fake plugin, and installing and opening the app on a Galaxy S25. **Not yet checked on the phone:** Magpie audio playback in the web view, spoken free questions, speech recognition in noise, and whether the microphone and location permissions are asked only once.
