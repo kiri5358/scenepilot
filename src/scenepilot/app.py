@@ -47,6 +47,15 @@ class NoCacheStaticFiles(StaticFiles):
         return response
 
 
+@app.middleware("http")
+async def _temporary_rate_key_diagnostics(request: Request, call_next) -> Response:
+    """TEMPORARY: show a salted hash of the rate-limit key on /api responses (see ratelimit.diagnostic_headers)."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers.update(ratelimit.diagnostic_headers(request))
+    return response
+
+
 app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 SESSIONS: dict[str, sm.Session] = {}
 MAX_SESSIONS = 500  # keep memory bounded on a public demo by dropping the oldest sessions first
