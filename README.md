@@ -156,7 +156,7 @@ The rules require a **demo URL that stays free and unrestricted until judging en
 ### Common points
 - The app runs as **one container** ([Dockerfile](Dockerfile), not built yet). Sessions live in memory, so run **exactly one instance**. With several, users lose their sessions.
 - Provide `NEBIUS_API_KEY` only as a **secret or environment variable** of the deployment. Never put it in the image or the repository.
-- A public URL lets anyone call the model. Before going public, create a dedicated key, set a usage limit in Nebius, and add an access code or rate limit (not built yet).
+- A public URL lets anyone call the model. Before going public, create a dedicated key and set a usage limit in Nebius. The app also limits each address (per 10 minutes: 25 photo analyses, 20 free questions, 30 new sessions; `src/scenepilot/ratelimit.py`). Questions that mention danger are never limited because they never reach the model. Behind a proxy such as Render set `SCENEPILOT_PROXY_HOPS=1` so the real caller's address is used (see `.env.example`); `SCENEPILOT_RATE_LIMIT=off` turns the limits off.
 - It must be an **HTTPS** address (phone browsers often require HTTPS for the camera, microphone, and location).
 
 ### Candidates

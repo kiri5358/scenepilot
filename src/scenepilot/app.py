@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,9 +17,10 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from . import session as sm
 from . import assistant
+from . import ratelimit
 from .checklist import ITEM_BY_ID
 from .config import get_settings
-from .emergency import QUESTION_IDS
+from .emergency import QUESTION_IDS, danger_signals
 from .guard import sanitize_analysis
 from . import states
 from .schemas import AnalyzeResponse
@@ -100,8 +101,9 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str]:
     return data, mime
 
 
-async def _analyze(file: UploadFile):
+async def _analyze(file: UploadFile, request: Request):
     data, mime = await _read_image(file)
+    ratelimit.enforce(request, "photo")  # after the free checks, right before the paid model call
     try:
         result = await analyze_photo(data, mime, settings=get_settings())
     except VisionError as e:
@@ -119,8 +121,8 @@ async def health() -> dict:
 # ---------- Single photo analysis ----------
 
 @app.post("/api/analyze-photo", response_model=AnalyzeResponse)
-async def analyze_photo_endpoint(file: UploadFile = File(...)) -> AnalyzeResponse:
-    analysis, _, result = await _analyze(file)
+async def analyze_photo_endpoint(request: Request, file: UploadFile = File(...)) -> AnalyzeResponse:
+    analysis, _, result = await _analyze(file, request)
     return AnalyzeResponse(analysis=analysis, model=result.model, latency_ms=result.latency_ms)
 
 
@@ -176,7 +178,8 @@ def _call(fn, *args):
 
 
 @app.post("/api/sessions")
-async def create_session(body: NewSession = NewSession()) -> dict:
+async def create_session(request: Request, body: NewSession = NewSession()) -> dict:
+    ratelimit.enforce(request, "session")
     s = _call(sm.new_session, body.country)
     while len(SESSIONS) >= MAX_SESSIONS:
         SESSIONS.pop(next(iter(SESSIONS)))  # dicts keep insertion order, so the first item is the oldest
@@ -204,12 +207,14 @@ async def safety_answer(session_id: str, body: SafetyAnswer) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/ask")
-async def ask_question(session_id: str, body: AskIn) -> dict:
+async def ask_question(session_id: str, request: Request, body: AskIn) -> dict:
     s = _get(session_id)
     if s.stage is sm.Stage.CONSENT:
         raise HTTPException(409, "Please agree to start first.")
     if s.questions_asked >= assistant.MAX_QUESTIONS_PER_SESSION:
         raise HTTPException(429, "That is the most questions for one accident. Please ask the police or your insurance company.")
+    if not danger_signals(body.question):  # a danger question gets the fixed 911 text and never reaches the model, so it is never limited
+        ratelimit.enforce(request, "ask")
     s.questions_asked += 1
     result = await assistant.ask(s, body.question)
     return {
@@ -247,11 +252,11 @@ async def guide(session_id: str, body: GuideIn) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/photo")
-async def submit_photo(session_id: str, file: UploadFile = File(...)) -> dict:
+async def submit_photo(session_id: str, request: Request, file: UploadFile = File(...)) -> dict:
     s = _get(session_id)
     if s.stage is not sm.Stage.PHOTOS:  # check the stage before calling the model
         raise HTTPException(409, f"Photos are not accepted in the current stage ({s.stage.value}).")
-    analysis, removed, result = await _analyze(file)
+    analysis, removed, result = await _analyze(file, request)
     verdict = _call(sm.submit_photo, s, analysis)
     return _view(
         s,
