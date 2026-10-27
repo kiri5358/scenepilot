@@ -16,7 +16,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
-from . import checklist, playbooks, states
+from . import checklist, playbooks, states, watch_hints
 from . import session as sm
 from .emergency import SAFETY_QUESTIONS, TITLES, Answer, evaluate
 
@@ -58,24 +58,26 @@ def fixed_prompts() -> list[str]:
     # safety questions
     found += [q.text for q in SAFETY_QUESTIONS]
 
-    # emergency / serious notices: every wording the rules can produce
-    risky = ("injury", "fire", "vulnerable", "airbag", "left_scene", "road_hazard")
-    for values in itertools.product((Answer.NO, Answer.YES), repeat=len(risky)):
-        for movable in (Answer.YES, Answer.NO):
-            decision = evaluate({**dict(zip(risky, values)), "movable": movable})
-            found += ([decision.title] if decision.title else []) + decision.actions
+    # emergency notices: every wording the rules can produce
+    for danger, movable in itertools.product((Answer.NO, Answer.YES), (Answer.YES, Answer.NO)):
+        decision = evaluate({"danger": danger, "movable": movable})
+        found += ([decision.title] if decision.title else []) + decision.actions
     found += [t for t in TITLES.values() if t]
 
-    # guidance: serious, standard (both ways the first step can read), state question, general reminders, state notes
-    for level, movable in (("serious", Answer.YES), ("none", Answer.YES), ("none", Answer.NO)):
-        found += [step.text for step in playbooks.guide_steps(level, {"movable": movable}, None)]
+    # guidance: the list screen (both ways the first step can read), state question, general reminders, state notes
+    for movable in (Answer.YES, Answer.NO):
+        for step in playbooks.guide_steps("none", {"movable": movable}, None):
+            found += [step.text, *step.items]
     found += [playbooks.GENERAL_OTHER, playbooks.GENERAL_UNSURE]
     for state in states.supported():
-        found += [note.text for note in states.ui_notes(state["code"])]
+        for note in states.ui_notes(state["code"]):
+            found += [note.title, note.text]  # the title is read when the note appears; the text only on Repeat
 
     # photo instructions and the fixed retake messages
     found += [item.instruction for item in checklist.ITEMS]
     found += list(checklist._DEFAULT_MESSAGES.values())
+
+    found += watch_hints.hints()  # conversation watch reminders
 
     seen: set[str] = set()
     ordered: list[str] = []

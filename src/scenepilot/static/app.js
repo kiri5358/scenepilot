@@ -8,6 +8,7 @@ const $voice = document.getElementById("voice");
 const $restart = document.getElementById("restart");
 const $profile = document.getElementById("profile");
 const $ask = document.getElementById("ask");
+const $watch = document.getElementById("watch");
 const $mic = document.getElementById("mic");
 const $listen = document.getElementById("listenbar");
 
@@ -69,6 +70,7 @@ const ICON_PATHS = {
   alert: '<path d="M12 3l9 17H3z"/><path d="M12 10v4"/><path d="M12 17.2v.1"/>',
   pin: '<path d="M12 21s-7-6.2-7-11a7 7 0 1114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
+  ear: '<path d="M7 9a5 5 0 0110 0c0 3-3 3.5-3 6.5a2.5 2.5 0 01-5 0"/><path d="M10 9a2 2 0 014 0"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
 };
 function icon(name, cls = "") {
@@ -215,6 +217,8 @@ function profileText(p) {
 const clips = { map: {} };   // sentence -> file name
 let speechToken = 0;         // the newest speak() call; older ones stop quietly
 let player = null;           // the clip that is playing, if any
+const SPEECH_RATE = 1.0;     // 1.0 is the normal speed; the clips and the device voice both use it (1.3 sounded unnatural)
+let speaking = false;        // true from the start of a speak() call until its last sentence ends or it is cancelled
 
 const sentenceKey = (text) => String(text).split(/\s+/).filter(Boolean).join(" ");
 
@@ -224,6 +228,7 @@ async function loadClips() {
 
 function stopSpeaking() {
   speechToken += 1;
+  speaking = false;
   if (player) { try { player.pause(); } catch { /* already stopped */ } player = null; }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
@@ -231,7 +236,7 @@ function stopSpeaking() {
 function deviceSpeak(text, next) {
   if (!("speechSynthesis" in window)) { setTimeout(next, 0); return; }
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US"; u.rate = 1.0;
+  u.lang = "en-US"; u.rate = SPEECH_RATE;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; clearTimeout(timer); next(); };
   const timer = setTimeout(finish, Math.max(3000, text.length * 90 + 1500)); // some devices never report the end
@@ -243,6 +248,7 @@ function sayOne(text, next) {
   const file = clips.map[sentenceKey(text)];
   if (!file) { deviceSpeak(text, next); return; }
   const audio = new Audio("static/audio/" + file);
+  audio.playbackRate = SPEECH_RATE;          // browsers keep the pitch, so the voice just speaks faster
   player = audio;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; clearTimeout(timer); next(); };
@@ -259,9 +265,10 @@ function speak(what, force = false, onDone = null) {
   stopSpeaking();
   if (!(state.voiceOn || force) || !parts.length) { if (onDone) setTimeout(onDone, 0); return; }
   const token = speechToken;
+  speaking = true;
   const step = (i) => {
     if (token !== speechToken) return;       // replaced by a newer speak() or cancelled
-    if (i >= parts.length) { if (onDone) onDone(); return; }
+    if (i >= parts.length) { speaking = false; if (onDone) onDone(); return; }
     sayOne(parts[i], () => step(i + 1));
   };
   step(0);
@@ -269,11 +276,13 @@ function speak(what, force = false, onDone = null) {
 
 // What a screen says, split into the same fixed sentences the clips were made from.
 const RETRY_PREFIX = "Sorry, I didn't catch that. ";
-function speechParts(p) {
+// A state note is long, so it is only announced by its title; Repeat (full = true) reads all of it.
+function speechParts(p, full = false) {
+  if (p.step_kind === "state_note" && p.step_title && !full) return [p.step_title];
   let text = p.text || "";
   const parts = [];
   if (text.startsWith(RETRY_PREFIX)) { parts.push(RETRY_PREFIX.trim()); text = text.slice(RETRY_PREFIX.length); }
-  parts.push(text, ...(p.actions || []), p.warning, p.retake_message);
+  parts.push(text, ...(p.items || []), ...(p.actions || []), p.warning, p.retake_message);
   return parts.filter(Boolean);
 }
 
@@ -290,6 +299,8 @@ function maybeSpeak() {
     if (state.spokenKey !== key || !voice.handsFree) return;
     setTimeout(() => { if (state.spokenKey === key) startListening(); }, 300);
   });
+  // Answer while the question is still being read: listen from the start and cut the reading short on a command.
+  if (speaking && voice.handsFree) startListening(true);
 }
 
 $voice.addEventListener("click", () => {
@@ -300,6 +311,7 @@ $voice.addEventListener("click", () => {
 });
 $restart.addEventListener("click", restart);
 function openAsk() {
+  stopWatch();
   stopListening();
   stopSpeaking();
   state.view = "ask"; state.error = null;
@@ -313,7 +325,83 @@ function closeAsk() {
   render();
 }
 $ask.addEventListener("click", () => (state.view === "ask" ? closeAsk() : openAsk()));
-$profile.addEventListener("click", () => { stopListening(); state.view = state.view === "profile" ? null : "profile"; render(); });
+
+// ---------- Conversation watch ----------
+// Off by default. When the user starts it, the microphone listens during the talk with the other driver and a fixed
+// reminder is spoken when a rule's phrase is heard (rules come from the server; matching is plain code in watch.js).
+// It runs only while this screen is open, so it never competes with the hands-free answers. Nothing heard is stored or sent.
+const watchState = { running: false, status: "stopped", message: null, rules: null, cooldown: 30, handle: null, played: [] };
+
+function stopWatch() {
+  if (watchState.handle) watchState.handle.stop();
+  watchState.handle = null; watchState.running = false; watchState.status = "stopped";
+  stopSpeaking();
+}
+
+function openWatch() {
+  stopListening();
+  stopSpeaking();
+  state.view = "watch"; state.error = null;
+  render();
+}
+
+function closeWatch() {
+  stopWatch();
+  state.view = null; state.spokenKey = null;
+  render();
+}
+
+async function startWatch() {
+  watchState.message = null;
+  if (!Speech.supported()) { watchState.message = "Listening needs a secure (HTTPS) page and a browser that supports speech recognition."; render(); return; }
+  if (!watchState.rules) {
+    try {
+      const r = await api("/api/watch-rules");
+      watchState.rules = r.rules; watchState.cooldown = r.cooldown_seconds;
+    } catch (e) { watchState.message = "Could not load the reminders. " + e.message; render(); return; }
+  }
+  watchState.running = true; watchState.status = "listening"; watchState.played = [];
+  watchState.handle = Watch.start({
+    speech: Speech, rules: watchState.rules, cooldownSeconds: watchState.cooldown,
+    onHint: (rule, done) => {
+      watchState.played.unshift(rule.hint);
+      if (state.view === "watch") render();
+      speak(rule.hint, true, done);
+    },
+    onStatus: (status, message) => {
+      watchState.status = status;
+      if (status === "error") { watchState.running = false; watchState.handle = null; watchState.message = message; }
+      if (state.view === "watch") render();
+    },
+  });
+  render();
+}
+
+function watchScreen() {
+  const on = watchState.running;
+  return [
+    h("div", { class: "card" },
+      h("h2", {}, icon("ear"), "Conversation watch"),
+      h("p", { class: "muted" }, "While you talk with the other driver, the app listens for a few phrases and quietly reminds you of one thing, such as sticking to the facts. It never decides who is at fault."),
+      h("ul", { class: "muted" },
+        h("li", {}, "Use earphones, so the other driver does not hear the reminders and the phone does not hear itself."),
+        h("li", {}, "The app cannot tell who is speaking, so a reminder may be about what the other person said."),
+        h("li", {}, "Nothing heard is saved or sent by ScenePilot. Your browser may send the audio to its own speech service."),
+        h("li", {}, "Rules about recording conversations differ by state. Tell the other driver you are using it if you are unsure."),
+        h("li", {}, "Keep this screen open while it listens. In a loud place it may miss words. This is a draft and not legal advice.")),
+      watchState.message ? h("div", { class: "banner warn" }, icon("alert", "sm"), h("div", {}, watchState.message)) : null,
+      h("div", { class: "stack", style: "margin-top:12px" },
+        on ? h("button", { class: "btn danger big", onclick: () => { stopWatch(); render(); } }, "Stop listening")
+           : h("button", { class: "btn primary big", onclick: startWatch }, icon("ear"), "Start listening"),
+        h("button", { class: "btn", onclick: closeWatch }, "Back to the steps"))),
+    on ? h("div", { class: "card", role: "status" },
+      h("div", { class: "kicker" }, watchState.status === "paused" ? "PLAYING A REMINDER" : "LISTENING"),
+      watchState.played.length ? h("div", {}, watchState.played.map((t) => h("p", { class: "a" }, t)))
+        : h("p", { class: "muted" }, "Reminders appear here when one is spoken.")) : null,
+  ];
+}
+$watch.addEventListener("click", () => (state.view === "watch" ? closeWatch() : openWatch()));
+$profile.addEventListener("click", () => { stopWatch(); stopListening(); state.view = state.view === "profile" ? null : "profile"; render(); });
 
 // ---------- Voice answers (browser speech recognition; needs HTTPS and the microphone) ----------
 // The app speaks, then listens. Spoken text is handled exactly like typed text, so the server's rules
@@ -329,7 +417,16 @@ function speakAgain(text) {
 }
 
 // What can be said on the screen that is showing right now. Returns null when voice is not used there.
+// `quick(text)` tells whether text is surely an answer, so reading can be cut short without reacting to the app's own voice.
 function voiceContext() {
+  const ctx = rawVoiceContext();
+  if (ctx && !ctx.quick && state.view !== "ask") ctx.quick = (t) => !!ctx.parse(t);
+  return ctx;
+}
+
+const QUICK_ANSWER = /\b(yes|yeah|yep|yup|no|nope|nah|nobody|not sure|unsure|don't know|maybe)\b/;
+
+function rawVoiceContext() {
   if (state.view === "ask") {
     if (state.busy) return null;
     return {
@@ -344,7 +441,7 @@ function voiceContext() {
   switch (d.session.stage) {
     case "safety":
       // The server reads the answer (with the recognizer's other guesses too), so the rules stay in one place.
-      return { hint: "Say yes, no, or not sure.", parse: (t) => (t.trim() ? t : null), run: (t, spoken, guesses) => act("safety-answer", { answer: t, alternatives: guesses || [] }) };
+      return { hint: "Say yes, no, or not sure.", parse: (t) => (t.trim() ? t : null), quick: (t) => QUICK_ANSWER.test(Speech.normalize(t)), run: (t, spoken, guesses) => act("safety-answer", { answer: t, alternatives: guesses || [] }) };
     case "emergency":
       return {
         hint: "Say \"got it\" when you have made the call or you are safe.",
@@ -378,7 +475,7 @@ function voiceContext() {
           if (cmd === "next") return act("guide", { action: "next" });
           if (cmd === "back") return act("guide", { action: "back" });
           if (cmd === "skip") return act("guide", { action: "skip" });
-          return speakAgain(p.text);
+          return speakAgain(speechParts(p, true));
         },
       };
     }
@@ -399,17 +496,26 @@ function voiceContext() {
   }
 }
 
-function startListening() {
+// `barge` = listen while the app is still reading the screen. Only a surely-understood answer (ctx.quick) cuts the reading
+// short; anything else heard meanwhile is most likely the app's own voice and is ignored.
+function startListening(barge = false) {
   const ctx = voiceContext();
   if (!ctx || !Speech.supported()) return;
+  if (barge && !ctx.quick) return;
   stopListening();
-  stopSpeaking();
+  if (!barge) stopSpeaking();
   voice.status = "listening"; voice.transcript = ""; voice.message = null; voice.hint = ctx.hint;
   paintListenBar();
-  voice.ctrl = Speech.listen({
-    onInterim: (text) => { voice.transcript = text; paintListenBar(); },
-    onFinal: (text, guesses) => handleSpoken(ctx, text, guesses),
+  const bargeKey = state.spokenKey;
+  const reading = () => barge && speaking && state.spokenKey === bargeKey;
+  const ctrl = voice.ctrl = Speech.listen({
+    onInterim: (text) => {
+      if (reading()) { if (!ctx.quick(text)) return; stopSpeaking(); }
+      voice.transcript = text; paintListenBar();
+    },
+    onFinal: (text, guesses) => { if (!reading()) handleSpoken(ctx, text, guesses); },
     onError: (message, code) => {
+      if (barge && !Speech.PERMISSION_CODES.has(code) && code !== "unsupported") return;   // quiet while reading; onEnd restarts
       voice.status = "idle";
       if (code === "no-speech" && voice.handsFree && voice.silent < MAX_SILENT_ROUNDS) {
         // Nobody spoke yet: keep listening on the same screen, quietly.
@@ -423,7 +529,11 @@ function startListening() {
       if (Speech.PERMISSION_CODES.has(code) || code === "unsupported") { voice.handsFree = false; store("handsfree", "off"); syncMic(); }
       paintListenBar();
     },
-    onEnd: () => { if (voice.status === "listening") voice.status = "idle"; paintListenBar(); },
+    onEnd: () => {
+      if (voice.ctrl === ctrl && reading() && voice.handsFree) { setTimeout(() => { if (voice.ctrl === ctrl && reading()) startListening(true); }, 200); return; }
+      if (voice.status === "listening" && voice.ctrl === ctrl) voice.status = "idle";
+      paintListenBar();
+    },
   });
 }
 
@@ -788,7 +898,7 @@ function guideScreen(d) {
   const common = [
     micRow(),
     h("div", { class: "two" },
-      h("button", { class: "btn", onclick: () => speak(p.text, true) }, "Repeat"),
+      h("button", { class: "btn", onclick: () => speak(speechParts(p, true), true) }, "Repeat"),
       h("button", { class: "btn", disabled: p.step_index === 0, onclick: () => act("guide", { action: "back" }) }, "Back")),
     h("button", { class: "btn ghost", onclick: () => act("guide", { action: "skip" }) }, "Skip to photos"),
   ];
@@ -829,11 +939,12 @@ function guideScreen(d) {
         ? `${stateName.toUpperCase()} - ${(p.step_title || "").toUpperCase()}`
         : `WHAT TO DO NOW ${p.step_index + 1}/${p.steps.length}`),
       h("p", { class: "lead" }, p.text),
+      p.step_kind === "list" ? h("ol", { class: "steps-list" }, p.items.map((s) => h("li", {}, s))) : null,
       ...noteCard,
       h("div", { class: "stack", style: "margin-top:12px" },
         h("button", { class: "btn primary big", onclick: () => act("guide", { action: "next" }) }, last ? "Continue to photos" : "Next"),
         ...common)),
-    allSteps,
+    p.step_kind === "list" ? null : allSteps,
   ];
 }
 
@@ -1040,6 +1151,8 @@ function render() {
     parts.push(...profileScreen());
   } else if (state.view === "ask") {
     parts.push(...askScreen());
+  } else if (state.view === "watch") {
+    parts.push(...watchScreen());
   } else if (state.data) {
     const screen = SCREENS[state.data.session.stage];
     parts.push(...[screen(state.data)].flat());

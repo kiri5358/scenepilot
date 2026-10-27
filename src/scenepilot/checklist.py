@@ -40,14 +40,14 @@ class ChecklistItem:
 ITEMS: tuple[ChecklistItem, ...] = (
     ChecklistItem(
         "scene_wide", "Wide shot of the scene",
-        "Take a photo that shows both vehicles and the road. If it is safe, step back until everything fits.",
+        "Take a photo of both vehicles and the road.",
         # The model often calls a fairly close shot of two touching cars "vehicle_full" (user test, 2026-10-23: the same
         # photo was labeled wide_scene 3 times and vehicle_full once), so both are accepted; two vehicles are still required.
         frozenset({SceneType.WIDE_SCENE, SceneType.VEHICLE_FULL}), needs_two_vehicles=True, core=True,
     ),
     ChecklistItem(
         "other_vehicle", "Other vehicle and license plate",
-        "Take a photo of the other vehicle, close enough that the license plate is readable.",
+        "Take a photo of the other vehicle and its license plate.",
         frozenset({SceneType.VEHICLE_FULL, SceneType.WIDE_SCENE, SceneType.LICENSE_PLATE, SceneType.DAMAGE_CLOSEUP}),
         needs_plate=True, core=True,  # a damage close-up that shows the plate is fine
     ),
@@ -65,12 +65,12 @@ ITEMS: tuple[ChecklistItem, ...] = (
     ),
     ChecklistItem(
         "road", "Road conditions",
-        "Take a photo of the road surface, the lane markings, and any signs or signals.",
+        "Take a photo of the road and any signs.",
         frozenset({SceneType.ROAD_CONDITION, SceneType.WIDE_SCENE}),
     ),
     ChecklistItem(
         "documents", "Other driver's documents (optional)",
-        "If the other driver agrees, photograph their insurance card so the text is readable. You can skip this if they say no.",
+        "If they agree, photograph the other driver's insurance card.",
         frozenset({SceneType.DOCUMENT}),
     ),
 )

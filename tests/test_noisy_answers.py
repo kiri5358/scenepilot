@@ -37,14 +37,14 @@ def test_session_uses_the_other_guesses():
     s = sm.new_session()
     sm.accept_consent(s)
     assert sm.answer_safety(s, "node", ["gnome", "no"]) is True
-    assert s.safety_answers["injury"] is Answer.NO
+    assert s.safety_answers["danger"] is Answer.NO
 
 
 def test_session_asks_again_when_no_guess_is_understood():
     s = sm.new_session()
     sm.accept_consent(s)
     assert sm.answer_safety(s, "node", ["gnome"]) is False
-    assert "injury" not in s.safety_answers
+    assert "danger" not in s.safety_answers
 
 
 def test_api_accepts_the_guesses_and_limits_them():

@@ -38,9 +38,7 @@ def test_api_flow(monkeypatch):
     r = client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": "Yes, my passenger is hurt"})
     assert r.json()["prompt"]["kind"] == "emergency"
     assert post_photo(sid).status_code == 409
-    client.post(f"/api/sessions/{sid}/ack-emergency")
-    for ans in ("No", "Yes", "No"):
-        r = client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": ans})
+    r = client.post(f"/api/sessions/{sid}/ack-emergency")
     assert r.json()["session"]["stage"] == "photos"  # an emergency goes straight on: 911 is the guidance
 
     QUEUE.append(pa(sharpness="blurry", retake_hint="Hold still and try again."))
@@ -76,11 +74,12 @@ def test_errors():
 def test_ui_is_served_and_view_has_screen_data():
     r = client.get("/")
     assert r.status_code == 200 and "ScenePilot" in r.text and "/static/app.js" in r.text
+    assert 'href="tel:911"' in r.text  # the 911 button is on every screen, so no question has to be answered first
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/static/style.css").status_code == 200
     v = client.post("/api/sessions").json()
     assert [c["id"] for c in v["checklist"]][0] == "scene_wide" and v["checklist"][0]["title"]
-    assert v["safety_progress"] == {"answered": 0, "total": 7}
+    assert v["safety_progress"] == {"answered": 0, "total": 2}
     assert "statement" in v["info_fields"]
 
 
@@ -88,15 +87,15 @@ def test_guide_endpoint_flow():
     sid = client.post("/api/sessions").json()["session"]["id"]
     assert client.post(f"/api/sessions/{sid}/guide", json={"action": "next"}).status_code == 409  # wrong stage
     client.post(f"/api/sessions/{sid}/consent")
-    for ans in ("No", "No", "No", "No", "No", "Yes", "No"):
+    for ans in ("No", "Yes"):
         r = client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": ans}).json()
     assert r["session"]["stage"] == "guide" and r["prompt"]["kind"] == "guide"
-    assert r["prompt"]["step_index"] == 0 and len(r["prompt"]["steps"]) >= 6
+    assert r["prompt"]["step_index"] == 0 and len(r["prompt"]["steps"]) == 2 and len(r["prompt"]["items"]) == 6
     assert client.post(f"/api/sessions/{sid}/guide", json={"action": "fly"}).status_code == 422
     r = client.post(f"/api/sessions/{sid}/guide", json={"action": "next"}).json()
     assert r["prompt"]["step_index"] == 1
     r = client.post(f"/api/sessions/{sid}/guide", json={"action": "skip"}).json()
-    assert r["session"]["stage"] == "photos" and r["safety_progress"]["total"] == 7
+    assert r["session"]["stage"] == "photos" and r["safety_progress"]["total"] == 2
 
 
 def test_states_endpoint_and_state_step():
@@ -106,10 +105,9 @@ def test_states_endpoint_and_state_step():
     sid = client.post("/api/sessions").json()["session"]["id"]
     assert client.post(f"/api/sessions/{sid}/state", json={"state": "FL"}).status_code == 409  # wrong stage
     client.post(f"/api/sessions/{sid}/consent")
-    for ans in ("No", "No", "No", "No", "No", "Yes", "No"):
+    for ans in ("No", "Yes"):
         client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": ans})
-    for _ in range(7):
-        r = client.post(f"/api/sessions/{sid}/guide", json={"action": "next"}).json()
+    r = client.post(f"/api/sessions/{sid}/guide", json={"action": "next"}).json()
     assert r["prompt"]["step_kind"] == "state" and len(r["prompt"]["states"]) == 2
     assert client.post(f"/api/sessions/{sid}/guide", json={"action": "next"}).status_code == 409
     assert client.post(f"/api/sessions/{sid}/state", json={"state": "TX"}).status_code == 422
@@ -122,10 +120,9 @@ def test_states_endpoint_and_state_step():
 def test_state_via_location_is_recorded_and_shown_in_the_summary():
     sid = client.post("/api/sessions").json()["session"]["id"]
     client.post(f"/api/sessions/{sid}/consent")
-    for ans in ("No", "No", "No", "No", "No", "Yes", "No"):
+    for ans in ("No", "Yes"):
         client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": ans})
-    for _ in range(7):
-        client.post(f"/api/sessions/{sid}/guide", json={"action": "next"})
+    client.post(f"/api/sessions/{sid}/guide", json={"action": "next"})
     assert client.post(f"/api/sessions/{sid}/state", json={"state": "FL", "via": "gps-secret"}).status_code == 422
     r = client.post(f"/api/sessions/{sid}/state", json={"state": "FL", "via": "location"}).json()
     assert r["session"]["accident_state_via"] == "location"

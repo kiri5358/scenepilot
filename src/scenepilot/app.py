@@ -22,7 +22,7 @@ from .checklist import ITEM_BY_ID
 from .config import get_settings
 from .emergency import QUESTION_IDS, danger_signals
 from .guard import sanitize_analysis
-from . import states
+from . import states, watch_hints
 from .schemas import AnalyzeResponse
 from .vision import VisionError, analyze_photo
 
@@ -235,6 +235,11 @@ async def ack_emergency(session_id: str) -> dict:
 async def list_states() -> dict:
     data = states.load()
     return {"states": states.supported(), "disclaimer": data.disclaimer, "retrieved": data.retrieved, "reviewed": data.reviewed}
+
+
+@app.get("/api/watch-rules")
+async def watch_rules() -> dict:
+    return watch_hints.public_rules()
 
 
 @app.post("/api/sessions/{session_id}/state")

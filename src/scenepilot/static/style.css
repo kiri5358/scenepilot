@@ -50,6 +50,14 @@ button, input, textarea { font: inherit; color: inherit; }
   color: var(--ink); display: grid; place-items: center; cursor: pointer;
 }
 .icon-btn[aria-pressed="false"] { color: var(--ink-2); opacity: .6; }
+/* The 911 call button is always visible, so nobody has to answer a question first. */
+.call911 {
+  height: 44px; padding: 0 14px; border-radius: 22px; background: var(--red); color: #fff; font-weight: 700; font-size: 16px;
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; flex: none;
+}
+.call911 .ico { width: 18px; height: 18px; }
+.top-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 480px) { .brand-sub { display: none; } .top-actions { gap: 6px; } .icon-btn { width: 40px; height: 40px; } }
 
 .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 10px 16px 4px; max-width: 560px; margin: 0 auto; }
 .step { text-align: center; font-size: 12px; color: var(--ink-2); }

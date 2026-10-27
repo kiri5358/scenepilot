@@ -19,7 +19,7 @@ def fixed_lines() -> list[str]:
     lines = [q.text for q in SAFETY_QUESTIONS]
     lines += [i.title for i in checklist.ITEMS] + [i.instruction for i in checklist.ITEMS]
     lines += list(checklist._DEFAULT_MESSAGES.values())
-    lines += list(playbooks.SERIOUS_STEPS) + [playbooks.STATE_QUESTION, playbooks.GENERAL_OTHER, playbooks.GENERAL_UNSURE]
+    lines += [playbooks.STATE_QUESTION, playbooks.GENERAL_OTHER, playbooks.GENERAL_UNSURE]
     lines += list(INFO_FIELDS.values()) + list(SOURCE_LABEL.values()) + [DISCLAIMER]
     for code in ("FL", "NY"):
         for n in states.ui_notes(code):
@@ -37,8 +37,13 @@ def test_every_fixed_line_has_a_korean_meaning():
     lines = fixed_lines()
     # the standard guidance steps, for both ways the first step can read
     for movable in (Answer.YES, Answer.NO):
-        lines += [s.text for s in playbooks.guide_steps("none", {"movable": movable}, "FL")]
+        for s in playbooks.guide_steps("none", {"movable": movable}, "FL"):
+            lines += [s.text, *s.items]
     lines += [s.text for s in playbooks.guide_steps("none", {}, "NY")]
+    # the emergency notice the rules produce
+    from scenepilot.emergency import evaluate
+    decision = evaluate({"danger": Answer.YES})
+    lines += [decision.title, *decision.actions]
     with tempfile.TemporaryDirectory() as folder:
         dump = Path(folder) / "lines.json"
         dump.write_text(json.dumps(sorted(set(lines))), encoding="utf-8")

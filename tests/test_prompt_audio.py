@@ -12,12 +12,14 @@ FIXED = set(pa.fixed_prompts())
 
 def spoken(prompt: sm.Prompt) -> list[str]:
     """What the screen reads aloud, split into sentences the way app.js does (see speechParts)."""
+    if prompt.step_kind == "state_note" and prompt.step_title:
+        return [pa.normalize(prompt.step_title)]  # a state note is announced by its title only
     text = prompt.text
     parts = []
     if text.startswith(pa.RETRY_PREFIX + " "):
         parts.append(pa.RETRY_PREFIX)
         text = text[len(pa.RETRY_PREFIX) + 1:]
-    parts += [text, *prompt.actions, *([prompt.warning] if prompt.warning else [])]
+    parts += [text, *prompt.items, *prompt.actions, *([prompt.warning] if prompt.warning else [])]
     return [pa.normalize(p) for p in parts if p]
 
 
@@ -27,9 +29,9 @@ def collect(s: sm.Session, found: list[str]) -> None:
 
 def test_the_list_is_complete_stable_and_free_of_duplicates():
     prompts = pa.fixed_prompts()
-    assert len(prompts) == len(set(prompts)) and 55 <= len(prompts) <= 80
+    assert len(prompts) == len(set(prompts)) and 45 <= len(prompts) <= 80
     assert prompts == pa.fixed_prompts()  # same order every time, so re-running the tool changes nothing
-    assert "Is anyone hurt? That includes you, your passengers, and the other driver." in prompts
+    assert "Is anyone hurt, or do you see smoke, fire, or fuel?" in prompts
     assert any(p.startswith("In Florida, report the crash") for p in prompts)
     assert any(p.startswith("In New York, each driver") for p in prompts)
 
@@ -59,10 +61,9 @@ def test_every_fixed_sentence_a_session_can_produce_is_in_the_list():
             sm.skip_item(s, "Not applicable")
         for stage in (sm.Stage.HUB, sm.Stage.INFO, sm.Stage.SUMMARY):
             s.stage = stage; collect(s, found)
-    # the vehicle cannot move, serious and emergency notices
+    # the vehicle cannot move, and the emergency notice
     s = sm.new_session(); sm.accept_consent(s)
-    for qid, ans in (("injury", "no"), ("fire", "no"), ("vulnerable", "yes")):
-        sm.answer_safety(s, ans)
+    sm.answer_safety(s, "no"); sm.answer_safety(s, "no")
     collect(s, found)
     s = sm.new_session(); sm.accept_consent(s); sm.answer_safety(s, "yes"); collect(s, found)
     missing = sorted(set(found) - FIXED)

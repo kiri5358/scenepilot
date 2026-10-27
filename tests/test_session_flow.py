@@ -25,8 +25,8 @@ CORE = ["scene_wide", "other_vehicle", "damage"]
 EXTRA = ["own_vehicle", "road"]
 
 
-# injury, fire, vulnerable, airbag, left_scene, movable, road_hazard
-SAFE_ANSWERS = ("No", "No", "No", "No", "No", "Yes", "No")
+# danger, movable
+SAFE_ANSWERS = ("No", "Yes")
 
 
 def to_guide(s: sm.Session) -> None:
@@ -149,17 +149,18 @@ def test_injury_forces_emergency_before_photos():
     with pytest.raises(sm.StateError):
         sm.submit_photo(s, analysis())  # no photos before the emergency guidance is acknowledged
     sm.acknowledge_emergency(s)
-    assert s.stage is sm.Stage.SAFETY
+    assert s.stage is sm.Stage.PHOTOS  # 911 is the guidance: the vehicle question is not asked
 
 
-def test_fire_after_injury_is_shown_again():
-    s = sm.new_session()
-    sm.accept_consent(s)
-    sm.answer_safety(s, "Yes")
-    sm.acknowledge_emergency(s)
-    sm.answer_safety(s, "Yes")  # fire
-    assert s.stage is sm.Stage.EMERGENCY  # a new danger (fire) is shown first again
-    assert "Get away from the vehicle" in sm.next_prompt(s).actions[0]
+def test_fire_or_a_cyclist_is_an_emergency_too():
+    for answer in ("Yes, there is smoke", "Yes, a cyclist"):
+        s = sm.new_session()
+        sm.accept_consent(s)
+        sm.answer_safety(s, answer)
+        assert s.stage is sm.Stage.EMERGENCY and s.emergency.level == "emergency"
+        p = sm.next_prompt(s)
+        assert p.text == "Safety first." and "get away from the vehicle" in p.actions[0]
+        assert any(b.number == "911" for b in p.call_buttons)
 
 
 def test_unparseable_answer_twice_becomes_unsure_and_emergency():
@@ -168,7 +169,7 @@ def test_unparseable_answer_twice_becomes_unsure_and_emergency():
     assert sm.answer_safety(s, "hmm") is False
     assert "didn't catch that" in sm.next_prompt(s).text
     assert sm.answer_safety(s, "uh") is True
-    assert s.safety_answers["injury"].value == "unsure"
+    assert s.safety_answers["danger"].value == "unsure"
     assert s.stage is sm.Stage.EMERGENCY
 
 
@@ -235,11 +236,12 @@ def test_standard_guidance_steps_and_voice_text():
     to_guide(s)
     assert s.emergency.level == "none"
     p = sm.next_prompt(s)
-    assert p.kind == "guide" and p.step_index == 0 and len(p.steps) == 8
-    assert "move the vehicles out of traffic" in p.steps[1]  # the vehicle can be moved
-    assert p.text == p.steps[0]
+    assert p.kind == "guide" and p.step_index == 0 and len(p.steps) == 2 and p.step_kind == "list"
+    assert "move out of traffic" in p.items[0]  # the vehicle can be moved
+    assert len(p.items) == 6 and "note their plate and call the police" in p.items[3]
+    assert p.text == p.steps[0] == "Take a breath. Here is what to do now."
     ask = _walk_to_state_step(s)
-    assert ask == 7  # the last of the standard steps asks which state
+    assert ask == 1  # one screen lists every step, then the state question
     p = sm.next_prompt(s)
     assert p.step_kind == "state" and {x["code"] for x in p.states} == {"FL", "NY"}
     with pytest.raises(sm.StateError):
@@ -306,59 +308,20 @@ def test_state_choice_rules():
     assert sm.next_prompt(s).step_index == 0
 
 
-def test_serious_guidance_ends_with_the_state_question_and_has_no_notes():
-    s = sm.new_session()
-    sm.accept_consent(s)
-    sm.answer_safety(s, "No")
-    sm.answer_safety(s, "No")
-    sm.answer_safety(s, "Yes, a cyclist")
-    sm.acknowledge_emergency(s)
-    for ans in ("No", "No", "Yes", "No"):
-        sm.answer_safety(s, ans)
-    steps = sm.guide_steps(s.emergency.level, s.safety_answers, None)
-    assert [st.kind for st in steps] == ["text"] * 6 + ["state"]
-    sm.set_accident_state(s, "NY")
-    assert sm.guide_steps(s.emergency.level, s.safety_answers, "NY")[-1].kind == "state"  # no notes were added
-    assert s.stage is sm.Stage.GUIDE  # still on the serious steps; the state step is answered in order later
-
-
-
 def test_guidance_when_the_vehicle_cannot_move():
     s = sm.new_session()
     sm.accept_consent(s)
-    for ans in ("No", "No", "No", "No", "No", "No", "No"):  # movable = No
+    for ans in ("No", "No"):  # danger = No, movable = No
         sm.answer_safety(s, ans)
     assert s.emergency.level == "caution"
-    assert "cannot move your vehicle" in sm.next_prompt(s).steps[1]
+    assert sm.next_prompt(s).items[0] == "Turn on your hazard lights and stay out of traffic."  # no "move it" advice
 
 
-def test_serious_notice_then_serious_guidance():
-    s = sm.new_session()
-    sm.accept_consent(s)
-    sm.answer_safety(s, "No")
-    sm.answer_safety(s, "No")
-    sm.answer_safety(s, "Yes, a cyclist")  # vulnerable road user involved
-    assert s.stage is sm.Stage.EMERGENCY and s.emergency.level == "serious"
-    p = sm.next_prompt(s)
-    assert p.text == "This may be serious." and any(b.number == "911" for b in p.call_buttons)
-    sm.acknowledge_emergency(s)
-    for ans in ("No", "No", "Yes", "No"):  # airbag, left_scene, movable, road_hazard
-        sm.answer_safety(s, ans)
-    assert s.stage is sm.Stage.GUIDE
-    assert sm.next_prompt(s).steps[0].startswith("Stay out of traffic")
-
-
-def test_emergency_skips_the_detail_questions_and_the_guidance():
+def test_emergency_skips_the_vehicle_question_and_the_guidance():
     s = sm.new_session()
     sm.accept_consent(s)
     sm.answer_safety(s, "Yes, my passenger is hurt")
     sm.acknowledge_emergency(s)
-    asked = []
-    while s.stage is sm.Stage.SAFETY:
-        qid = sm._next_question_id(s)
-        asked.append(qid)
-        sm.answer_safety(s, "Yes" if qid == "movable" else "No")  # movable=No would raise a new caution notice
-    assert asked == ["fire", "movable", "road_hazard"]  # vulnerable, airbag, left_scene are skipped
     assert s.stage is sm.Stage.PHOTOS  # 911 is the guidance: no more screens to read
     assert s.accident_state is None  # nobody was asked, and no location was available
     while sm.current_item_id(s):
@@ -366,7 +329,7 @@ def test_emergency_skips_the_detail_questions_and_the_guidance():
     sm.finish(s)
     items = {i.label: (i.value, i.source) for sec in sm.build_summary(s).sections for i in sec.items}
     assert items["Situation level (rule-based)"][0] == "Emergency"
-    assert items["Was a pedestrian, bicyclist, or motorcyclist involved?"][0] == "Not asked"
+    assert items["Can your vehicle be moved to a safe spot out of traffic?"][0] == "Not asked"
     assert items["State where the accident happened"] == ("Not asked", sm.Source.UNCONFIRMED)
 
 
@@ -386,8 +349,6 @@ def test_emergency_takes_the_state_from_the_location_without_asking():
     with pytest.raises(ValueError):
         sm.set_accident_state(s, "TX", via="location_auto")
     sm.acknowledge_emergency(s)
-    while s.stage is sm.Stage.SAFETY:
-        sm.answer_safety(s, "Yes" if sm._next_question_id(s) == "movable" else "No")
     assert s.stage is sm.Stage.PHOTOS
     while sm.current_item_id(s):
         sm.skip_item(s, "Not safe")
@@ -408,20 +369,12 @@ def test_guide_rules():
         sm.guide(s, "fly")
 
 
-def test_the_prompt_always_asks_the_question_the_answer_will_be_recorded_for():
-    """Regression: in an emergency the screen used to show a skipped question while the server recorded another."""
+def test_an_emergency_asks_no_more_questions():
     s = sm.new_session()
     sm.accept_consent(s)
     sm.answer_safety(s, "Yes, my passenger is hurt")
-    sm.acknowledge_emergency(s)
-    shown = []
-    while s.stage is sm.Stage.SAFETY:
-        p = sm.next_prompt(s)
-        assert p.item_id == sm._next_question_id(s)
-        shown.append(p.item_id)
-        sm.answer_safety(s, "Yes" if p.item_id == "movable" else "No")
-    assert shown == ["fire", "movable", "road_hazard"]
-    assert sm.safety_question_count(s) == 4  # injury, fire, movable, road_hazard (the 3 detail questions are skipped)
+    assert sm._next_question_id(s) is None
+    assert sm.safety_question_count(s) == 1  # the vehicle question is skipped: 911 gives those instructions
 
 
 def test_every_stage_prompt_matches_the_next_question_in_a_normal_flow():
@@ -433,8 +386,8 @@ def test_every_stage_prompt_matches_the_next_question_in_a_normal_flow():
         assert p.item_id == sm._next_question_id(s)
         seen.append(p.item_id)
         sm.answer_safety(s, "Yes" if p.item_id == "movable" else "No")
-    assert seen == ["injury", "fire", "vulnerable", "airbag", "left_scene", "movable", "road_hazard"]
-    assert sm.safety_question_count(s) == 7
+    assert seen == ["danger", "movable"]
+    assert sm.safety_question_count(s) == 2
 
 
 def test_close_shots_the_model_labels_differently_are_still_accepted():

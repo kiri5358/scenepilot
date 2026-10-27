@@ -83,14 +83,8 @@
       "처음부터 다시 시작할까요? 지금까지 기록한 내용을 이 기기에서 더 이상 열 수 없게 됩니다.",
 
     // safety questions
-    "is anyone hurt? that includes you, your passengers, and the other driver.": "다친 사람이 있나요? 본인, 동승자, 상대 운전자 모두 포함입니다.",
-    "do you see or smell smoke, fire, fuel, or leaking fluid from any vehicle?": "어느 차량에서든 연기, 불, 연료 냄새, 액체 새는 것이 보이거나 냄새가 나나요?",
-    "was a pedestrian, bicyclist, or motorcyclist involved?": "보행자, 자전거, 오토바이가 관련되었나요?",
-    "did any airbags go off?": "에어백이 터졌나요?",
-    "did anyone drive away from the scene?": "누군가 현장을 떠났나요?",
+    "is anyone hurt, or do you see smoke, fire, or fuel?": "다친 사람이 있거나 연기, 불, 연료가 보이나요?",
     "can your vehicle be moved to a safe spot out of traffic?": "내 차를 차량 흐름 밖 안전한 곳으로 옮길 수 있나요?",
-    "is a vehicle blocking a lane or stopped somewhere dangerous, like a highway or a blind curve?":
-      "차가 차선을 막고 있거나 고속도로, 시야가 안 보이는 커브 같은 위험한 곳에 서 있나요?",
     "yes": "예", "no": "아니요", "not sure": "모르겠어요",
     "or type it (for example: nobody is hurt)": "또는 직접 입력 (예: nobody is hurt)",
     "or answer in your own words": "또는 자기 말로 대답하기",
@@ -99,15 +93,8 @@
 
     // emergency
     "safety first.": "안전이 먼저입니다.",
-    "this may be serious.": "심각한 상황일 수 있습니다.",
-    "get away from the vehicle to a safe place first. once you are safe, call 911.": "먼저 차에서 떨어져 안전한 곳으로 가세요. 안전해지면 911에 전화하세요.",
-    "call 911 now and tell them someone may be hurt. stay on the line and follow the dispatcher's instructions.":
-      "지금 911에 전화해서 다친 사람이 있을 수 있다고 말하세요. 전화를 끊지 말고 상담원의 지시를 따르세요.",
-    "call 911 now and tell them what happened.": "지금 911에 전화해서 무슨 일이 있었는지 말하세요.",
-    "tell them a pedestrian, bicyclist, or motorcyclist may be involved.": "보행자, 자전거, 오토바이가 관련되었을 수 있다고 말하세요.",
-    "tell them an airbag went off.": "에어백이 터졌다고 말하세요.",
-    "tell them someone left the scene. if you can, note their license plate, vehicle, and direction. do not chase them.":
-      "누군가 현장을 떠났다고 말하세요. 가능하면 번호판, 차종, 간 방향을 적어 두세요. 쫓아가지 마세요.",
+    "if there is smoke, fire, or fuel, get away from the vehicle first.": "연기, 불, 연료가 있으면 먼저 차에서 떨어지세요.",
+    "call 911 now. stay on the line and follow the dispatcher's instructions.": "지금 911에 전화하세요. 전화를 끊지 말고 상담원의 지시를 따르세요.",
     "turn on your hazard lights. if it is safe, get out and move away from traffic, behind a guardrail if there is one.":
       "비상등을 켜세요. 안전하다면 차에서 내려 차량 흐름에서 떨어지세요. 가드레일이 있으면 그 뒤로 가세요.",
     "got it": "알겠어요",
@@ -117,23 +104,15 @@
       "신고서에 쓸 수 있도록 폰 위치로 현재 있는 곳(주)을 기록했습니다. 위치는 폰 안에만 남습니다.",
     "say \"got it\"": "\"got it\"이라고 말하기",
 
-    // guide: serious steps
-    "stay out of traffic and away from damaged vehicles.": "차량 흐름에서 벗어나고 파손된 차량에서 떨어져 계세요.",
-    "follow the 911 dispatcher's instructions, including what to do with the vehicles.": "차량을 어떻게 할지를 포함해 911 상담원의 지시를 따르세요.",
-    "stay calm and avoid arguing with the other driver.": "침착하게 계시고 상대 운전자와 말다툼하지 마세요.",
-    "take photos only if it is completely safe.": "완전히 안전할 때만 사진을 찍으세요.",
-    "write down what you remember now: the time, the place, and what you saw.": "지금 기억나는 것을 적어 두세요: 시간, 장소, 본 것.",
-    "when the police arrive, tell them what you saw. ask how to get a copy of the report.": "경찰이 오면 본 것을 말하세요. 사고 보고서 사본을 받는 방법을 물어보세요.",
-    // guide: standard steps
-    "take a breath. we will go one step at a time.": "숨을 한 번 쉬세요. 한 단계씩 같이 갈게요.",
-    "turn on your hazard lights. if you cannot move your vehicle, leave it and stay out of traffic.": "비상등을 켜세요. 차를 옮길 수 없으면 그대로 두고 차량 흐름에서 벗어나 계세요.",
-    "turn on your hazard lights. if it is safe, move the vehicles out of traffic.": "비상등을 켜세요. 안전하다면 차량들을 차량 흐름 밖으로 옮기세요.",
-    "stay at the scene until you have exchanged information.": "정보를 교환할 때까지 현장에 계세요.",
-    "take photos while it is safe: both vehicles, the license plates, the damage, and the road.": "안전할 때 사진을 찍으세요: 양쪽 차량, 번호판, 손상 부위, 도로.",
-    "exchange details with the other driver: name, phone number, insurance company, policy number, and license plate.":
-      "상대 운전자와 정보를 교환하세요: 이름, 전화번호, 보험사, 증권 번호, 번호판.",
-    "stick to the facts when you describe what happened.": "상황을 설명할 때는 사실만 말하세요.",
-    "call your insurance company to report the accident.": "보험사에 전화해서 사고를 알리세요.",
+    // guide: the list screen
+    "take a breath. here is what to do now.": "숨을 한 번 쉬세요. 지금 할 일입니다.",
+    "if they drive off, note their plate and call the police.": "상대가 떠나면 번호판을 적고 경찰에 전화하세요.",
+    "turn on your hazard lights and stay out of traffic.": "비상등을 켜고 차량 흐름에서 벗어나 계세요.",
+    "turn on your hazard lights. if it is safe, move out of traffic.": "비상등을 켜세요. 안전하다면 차량 흐름 밖으로 옮기세요.",
+    "stay until you have exchanged information.": "정보를 교환할 때까지 계세요.",
+    "exchange name, phone, insurance, and license plate.": "이름, 전화번호, 보험, 번호판을 교환하세요.",
+    "stick to the facts.": "사실만 말하세요.",
+    "call your insurance company.": "보험사에 전화하세요.",
     "where did the accident happen? some rules depend on the state.": "사고가 어느 주에서 났나요? 주마다 규칙이 다릅니다.",
     "i don't have details for that state. some places require a police report or a report to the state. check that state's official guidance.":
       "그 주에 대한 자세한 정보는 없습니다. 경찰 신고나 주 정부 신고가 필요한 곳이 있습니다. 그 주의 공식 안내를 확인하세요.",
@@ -152,18 +131,17 @@
 
     // photo screen / checklist
     "wide shot of the scene": "현장 전체 사진",
-    "take a photo that shows both vehicles and the road. if it is safe, step back until everything fits.": "양쪽 차량과 도로가 모두 나오게 찍으세요. 안전하다면 뒤로 물러나 전체가 들어오게 하세요.",
+    "take a photo of both vehicles and the road.": "양쪽 차량과 도로가 모두 나오게 찍으세요.",
     "other vehicle and license plate": "상대 차량과 번호판",
-    "take a photo of the other vehicle, close enough that the license plate is readable.": "상대 차량을 번호판이 읽힐 만큼 가까이에서 찍으세요.",
+    "take a photo of the other vehicle and its license plate.": "상대 차량과 번호판이 나오게 찍으세요.",
     "damage": "손상 부위",
     "take a close, clear photo of the damaged area.": "손상된 부위를 가까이에서 또렷하게 찍으세요.",
     "your vehicle": "내 차량",
     "take a photo that shows your whole vehicle.": "내 차량 전체가 나오게 찍으세요.",
     "road conditions": "도로 상황",
-    "take a photo of the road surface, the lane markings, and any signs or signals.": "노면, 차선 표시, 표지판이나 신호가 나오게 찍으세요.",
+    "take a photo of the road and any signs.": "도로와 표지판이 나오게 찍으세요.",
     "other driver's documents (optional)": "상대 운전자 서류 (선택)",
-    "if the other driver agrees, photograph their insurance card so the text is readable. you can skip this if they say no.":
-      "상대 운전자가 동의하면 보험 카드를 글자가 읽히게 찍으세요. 거절하면 건너뛰어도 됩니다.",
+    "if they agree, photograph the other driver's insurance card.": "상대가 동의하면 상대 운전자의 보험 카드를 찍으세요.",
     "only take photos where you are safe.": "안전한 곳에서만 사진을 찍으세요.",
     "take photo": "사진 찍기", "choose from library": "앨범에서 선택", "skip": "건너뛰기",
     "stop here and go back": "여기서 멈추고 돌아가기",
@@ -204,7 +182,7 @@
     "ai observations (unverified)": "AI 관찰 (검증되지 않음)", "other driver and witnesses": "상대 운전자와 목격자",
     "not confirmed": "확인되지 않은 항목", "(none)": "(없음)", "time": "시각",
     "state where the accident happened": "사고가 난 주", "situation level (rule-based)": "상황 단계 (규칙으로 판정)",
-    "emergency": "응급", "serious": "심각", "caution": "주의", "standard": "일반",
+    "emergency": "응급", "caution": "주의", "standard": "일반",
     "not asked": "묻지 않음", "no answer": "답 없음", "not taken": "찍지 않음", "unclear, needs a retake": "불명확, 다시 찍어야 함",
     "no visible damage": "눈에 보이는 손상 없음", "looks minor": "경미해 보임", "looks significant": "상당해 보임", "can't tell": "판단 불가",
     "your account of what happened": "무슨 일이 있었는지에 대한 내 설명",

@@ -3,11 +3,13 @@
 Principle: answers we cannot understand or that are unsure are treated as the risky case (UNSURE).
 We give no medical advice. We only point to the phone call.
 
+Two questions only: is there danger, and can the vehicle be moved. A 911 button is also always visible in the app, so
+the user can call without answering anything.
+
 Situation levels (highest first):
-  emergency  someone may be hurt, or there may be fire/fuel         -> call 911, get safe
-  serious    pedestrian/bicyclist/motorcyclist, airbag, left scene  -> call 911 and report it
-  caution    vehicle cannot be moved, or it is in a dangerous spot  -> hazard lights, get out of traffic
-  none       none of the above                                      -> standard guidance
+  emergency  someone may be hurt, or there may be smoke, fire or fuel (a pedestrian, bicyclist or motorcyclist hit counts as hurt) -> call 911, get safe
+  caution    vehicle cannot be moved                                                              -> hazard lights, get out of traffic
+  none       none of the above                                                                    -> standard guidance
 """
 from __future__ import annotations
 
@@ -30,19 +32,14 @@ class SafetyQuestion:
     text: str
 
 
-# Question order. Life safety first, then facts that raise the level, then what to do with the vehicles.
+# Question order. Life safety first, then what to do with the vehicles.
 SAFETY_QUESTIONS: tuple[SafetyQuestion, ...] = (
-    SafetyQuestion("injury", "Is anyone hurt? That includes you, your passengers, and the other driver."),
-    SafetyQuestion("fire", "Do you see or smell smoke, fire, fuel, or leaking fluid from any vehicle?"),
-    SafetyQuestion("vulnerable", "Was a pedestrian, bicyclist, or motorcyclist involved?"),
-    SafetyQuestion("airbag", "Did any airbags go off?"),
-    SafetyQuestion("left_scene", "Did anyone drive away from the scene?"),
+    SafetyQuestion("danger", "Is anyone hurt, or do you see smoke, fire, or fuel?"),
     SafetyQuestion("movable", "Can your vehicle be moved to a safe spot out of traffic?"),
-    SafetyQuestion("road_hazard", "Is a vehicle blocking a lane or stopped somewhere dangerous, like a highway or a blind curve?"),
 )
 QUESTION_IDS = tuple(q.id for q in SAFETY_QUESTIONS)
-# In an emergency these are not asked: 911 handles the details and they cannot lower the level.
-SKIPPED_WHEN_EMERGENCY = frozenset({"vulnerable", "airbag", "left_scene"})
+# In an emergency this is not asked: 911 gives the instructions about the vehicles.
+SKIPPED_WHEN_EMERGENCY = frozenset({"movable"})
 
 # Emergency numbers by country. The demo targets the United States; other countries are rejected at session start.
 EMERGENCY_NUMBERS: dict[str, dict[str, str]] = {
@@ -50,7 +47,7 @@ EMERGENCY_NUMBERS: dict[str, dict[str, str]] = {
 }
 DEFAULT_COUNTRY = "US"
 
-TITLES = {"emergency": "Safety first.", "serious": "This may be serious.", "caution": "", "none": ""}
+TITLES = {"emergency": "Safety first.", "caution": "", "none": ""}
 
 
 # ---------- Understanding answers ----------
@@ -87,27 +84,12 @@ _VULN_WORDS = r"(?:pedestrians?|bicycl\w*|cyclists?|bikers?|bike|motorcycl\w*|sc
 _VULN_POS = re.compile(rf"\b{_VULN_WORDS}\b|\bon foot\b|\bwalking\b")
 _VULN_NEG = re.compile(rf"\b(?:no|not any|nobody|without|didn'?t see any|did not see any)(?: \w+){{0,2}} {_VULN_WORDS}\b")
 
-_AIRBAG_POS = re.compile(r"\b(?:went off|deployed|inflated|popped|exploded)\b|\b(?:airbags?|air bags?)\b(?: \w+){0,3} out\b")
-_AIRBAG_NEG = re.compile(
-    r"\b(?:no|nothing)(?: \w+){0,2} (?:airbags?|air bags?)\b"
-    r"|\b(?:didn'?t|did not|haven'?t|have not|not|never)(?: \w+){0,2} (?:go off|went off|deploy\w*|inflat\w*|pop\w*)\b"
-)
-
-_LEFT_POS = re.compile(
-    r"\b(?:drove (?:off|away)|left|fled|ran off|took off|sped off|hit and run|hit-and-run|got away|gone|leaving)\b"
-)
-_LEFT_NEG = re.compile(
-    r"\b(?:no ?one|nobody|none)(?: \w+){0,2} (?:left|fled|drove (?:off|away)|ran off|took off)\b"
-    r"|\b(?:didn'?t|did not|hasn'?t|has not|haven'?t)(?: \w+){0,2} (?:leave|left|flee|fled|drive (?:off|away)|run off)\b"
-    r"|\b(?:still here|still there|stayed|staying)\b"
-)
 _SIGNALS = {
     "injury": (_INJURY_POS, _INJURY_NEG),
     "fire": (_FIRE_POS, _FIRE_NEG),
     "vulnerable": (_VULN_POS, _VULN_NEG),
-    "airbag": (_AIRBAG_POS, _AIRBAG_NEG),
-    "left_scene": (_LEFT_POS, _LEFT_NEG),
 }
+_DANGER_PARTS = ("injury", "fire", "vulnerable")  # what the "danger" question covers
 
 _NO_WORDS = {"no", "nope", "nah", "negative", "none", "nobody", "nothing", "never", "not",
              "can't", "cannot", "won't", "wouldn't", "couldn't", "isn't", "aren't", "doesn't", "don't"}
@@ -150,13 +132,14 @@ def parse_answer(text: str, question_id: str) -> Answer | None:
         return Answer(t)
     if _UNSURE.search(t):
         return Answer.UNSURE
-    if question_id in _SIGNALS:
-        positive, negative = _SIGNALS[question_id]
-        remainder = negative.sub(" ", t)
-        negated = remainder != t
-        if positive.search(remainder):
+    parts = _DANGER_PARTS if question_id == "danger" else (question_id,) if question_id in _SIGNALS else ()
+    if parts:
+        remainder = t
+        for part in parts:
+            remainder = _SIGNALS[part][1].sub(" ", remainder)
+        if any(_SIGNALS[part][0].search(remainder) for part in parts):
             return Answer.YES  # a danger signal wins even when other words are mixed in
-        if negated:
+        if remainder != t:
             return Answer.NO
     return _generic(t)
 
@@ -193,21 +176,11 @@ class CallButton(BaseModel):
 
 
 class EmergencyDecision(BaseModel):
-    level: str = "none"  # none | caution | serious | emergency
+    level: str = "none"  # none | caution | emergency
     title: str = ""
     triggers: list[str] = Field(default_factory=list)  # ids of the questions that raised the level
     actions: list[str] = Field(default_factory=list)
     call_buttons: list[CallButton] = Field(default_factory=list)
-
-
-_SERIOUS_DETAIL = {
-    "vulnerable": "Tell them a pedestrian, bicyclist, or motorcyclist may be involved.",
-    "airbag": "Tell them an airbag went off.",
-    "left_scene": (
-        "Tell them someone left the scene. If you can, note their license plate, vehicle, and direction. "
-        "Do not chase them."
-    ),
-}
 
 
 def evaluate(answers: dict[str, Answer], country: str = DEFAULT_COUNTRY) -> EmergencyDecision:
@@ -217,52 +190,25 @@ def evaluate(answers: dict[str, Answer], country: str = DEFAULT_COUNTRY) -> Emer
     nums = EMERGENCY_NUMBERS[country]
     risky = (Answer.YES, Answer.UNSURE)
 
-    emergency_triggers = [q for q in ("injury", "fire") if answers.get(q) in risky]
-    serious_triggers = [q for q in ("vulnerable", "airbag", "left_scene") if answers.get(q) in risky]
-    caution_triggers = []
-    if answers.get("road_hazard") in risky:
-        caution_triggers.append("road_hazard")
-    if answers.get("movable") == Answer.NO:
-        caution_triggers.append("movable")
-
     actions: list[str] = []
     buttons: list[CallButton] = []
+    triggers: list[str] = []
 
-    def add_button(label: str, number: str) -> None:
-        if not any(b.number == number for b in buttons):  # one button per number (US: everything is 911)
-            buttons.append(CallButton(label=label, number=number))
-
-    if "fire" in emergency_triggers:
-        actions.append("Get away from the vehicle to a safe place first. Once you are safe, call " + nums["fire"] + ".")
-        add_button(f"Call {nums['fire']}", nums["fire"])
-    if "injury" in emergency_triggers:
-        actions.append(
-            f"Call {nums['ambulance']} now and tell them someone may be hurt. "
-            "Stay on the line and follow the dispatcher's instructions."
-        )
-        add_button(f"Call {nums['ambulance']}", nums["ambulance"])
-    if serious_triggers:
-        if not emergency_triggers:
-            actions.append(f"Call {nums['police']} now and tell them what happened.")
-        actions.extend(_SERIOUS_DETAIL[q] for q in serious_triggers)
-        add_button(f"Call {nums['police']}", nums["police"])
-    if caution_triggers:
+    if answers.get("danger") in risky:
+        triggers.append("danger")
+        level = "emergency"
+        actions.append("If there is smoke, fire, or fuel, get away from the vehicle first.")
+        actions.append(f"Call {nums['ambulance']} now. Stay on the line and follow the dispatcher's instructions.")
+        buttons.append(CallButton(label=f"Call {nums['ambulance']}", number=nums["ambulance"]))
+    elif answers.get("movable") == Answer.NO:
+        triggers.append("movable")
+        level = "caution"
         actions.append(
             "Turn on your hazard lights. If it is safe, get out and move away from traffic, "
             "behind a guardrail if there is one."
         )
-        if "road_hazard" in caution_triggers:
-            add_button(f"Call {nums['police']}", nums["police"])
-
-    if emergency_triggers:
-        level = "emergency"
-    elif serious_triggers:
-        level = "serious"
-    elif caution_triggers:
-        level = "caution"
     else:
         level = "none"
-    triggers = emergency_triggers + serious_triggers + caution_triggers
     return EmergencyDecision(
         level=level, title=TITLES[level], triggers=triggers, actions=actions, call_buttons=buttons
     )

@@ -1,6 +1,6 @@
 """Session state machine and intake summary.
 
-Flow: consent -> safety check -> (emergency or serious notice) -> 'what to do now' guidance -> photo checklist -> details -> summary.
+Flow: consent -> safety check -> (emergency notice) -> 'what to do now' guidance -> photo checklist -> details -> summary.
 Code decides every transition and every fixed line of text. The model only supplies photo observations (PhotoAnalysis)
 and cannot change the stage, the emergency level, or pass/fail.
 """
@@ -43,7 +43,7 @@ class StateError(Exception):
 class Stage(StrEnum):
     CONSENT = "consent"
     SAFETY = "safety"
-    EMERGENCY = "emergency"  # also used for the "serious" notice
+    EMERGENCY = "emergency"
     GUIDE = "guide"  # step-by-step "what to do now"
     PHOTOS = "photos"
     HUB = "hub"  # fork after the core photos: summary / more photos / details
@@ -148,7 +148,7 @@ def safety_question_count(s: Session) -> int:
 
 
 def _pending_triggers(s: Session) -> list[str]:
-    if s.emergency.level not in ("emergency", "serious"):
+    if s.emergency.level != "emergency":
         return []
     return [t for t in s.emergency.triggers if t not in s.acked_triggers]
 
@@ -171,7 +171,7 @@ def answer_safety(s: Session, raw: str, alternatives: list[str] | None = None) -
     s.safety_answers[qid] = answer
     s.emergency = evaluate(s.safety_answers, s.country)
     if _pending_triggers(s):
-        s.stage = Stage.EMERGENCY  # the rules show the emergency or serious notice before anything else
+        s.stage = Stage.EMERGENCY  # the rules show the emergency notice before anything else
     else:
         _after_safety(s)
     return True
@@ -382,6 +382,7 @@ class Prompt(BaseModel):
     item_id: str | None = None
     retake_message: str | None = None
     steps: list[str] = Field(default_factory=list)
+    items: list[str] = Field(default_factory=list)  # the sentences of a list step, read one after the other
     step_index: int = 0
     step_kind: str = "text"
     step_title: str | None = None
@@ -418,7 +419,7 @@ def next_prompt(s: Session) -> Prompt:
         i = min(s.guide_index, len(steps) - 1)
         cur = steps[i]
         return Prompt(
-            kind="guide", text=cur.text, steps=[st.text for st in steps], step_index=i, step_kind=cur.kind,
+            kind="guide", text=cur.text, items=cur.items, steps=[st.text for st in steps], step_index=i, step_kind=cur.kind,
             step_title=cur.note_title, sources=[src.model_dump() for src in cur.sources],
             states=states.supported() if cur.kind == "state" else [], state_choice=s.accident_state,
             state_disclaimer=states.load().disclaimer if cur.kind == "state_note" else None,
@@ -507,7 +508,7 @@ def build_summary(s: Session) -> Summary:
     for q in SAFETY_QUESTIONS:
         ans = s.safety_answers.get(q.id)
         safety.append(SummaryItem(label=q.text, value=_ANSWER_LABEL[ans] if ans else ("Not asked" if q.id in SKIPPED_WHEN_EMERGENCY and s.emergency.level == "emergency" else "No answer"), source=Source.USER_STATEMENT if ans else Source.UNCONFIRMED))
-    level_label = {"emergency": "Emergency", "serious": "Serious", "caution": "Caution", "none": "Standard"}[s.emergency.level]
+    level_label = {"emergency": "Emergency", "caution": "Caution", "none": "Standard"}[s.emergency.level]
     safety.append(SummaryItem(label="Situation level (rule-based)", value=level_label, source=Source.SYSTEM))
 
     statement_items = []
