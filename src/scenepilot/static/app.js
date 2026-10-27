@@ -326,6 +326,18 @@ function closeAsk() {
 }
 $ask.addEventListener("click", () => (state.view === "ask" ? closeAsk() : openAsk()));
 
+// The header keeps only the logo, 911 and a menu; the other actions live in the menu and close it when used.
+const $menu = document.getElementById("menu");
+const $menuBtn = document.getElementById("menu-btn");
+function setMenu(open) {
+  $menu.hidden = !open;
+  $menuBtn.setAttribute("aria-expanded", String(open));
+}
+$menuBtn.addEventListener("click", (e) => { e.stopPropagation(); setMenu($menu.hidden); });
+$menu.addEventListener("click", (e) => { if (e.target.closest(".menu-item")) setMenu(false); });
+document.addEventListener("click", (e) => { if (!$menu.hidden && !e.target.closest("#menu")) setMenu(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+
 // ---------- Conversation watch ----------
 // Off by default. When the user starts it, the microphone listens during the talk with the other driver and a fixed
 // reminder is spoken when a rule's phrase is heard (rules come from the server; matching is plain code in watch.js).
@@ -655,10 +667,13 @@ function consentScreen(d) {
   const saved = profileFilled(loadProfile());
   return [
     h("div", { class: "card" },
-      h("h2", {}, "Before you start"),
-      h("p", { class: "lead" }, d.prompt.text),
-      h("ul", { class: "plain muted" }, CONSENT_POINTS.map((point) => h("li", {}, point))),
-      h("p", { class: "muted" }, "Tip: add ScenePilot to your home screen so it opens like an app, ready to listen."),
+      h("h1", { class: "hero" }, "Calm help, right at the scene."),
+      h("p", { class: "hero-sub" }, "Answer two quick questions. We guide you through photos, details, and who to call."),
+      h("details", { class: "more" },
+        h("summary", {}, "What happens to my data?"),
+        h("ul", { class: "plain muted" }, CONSENT_POINTS.map((point) => h("li", {}, point))),
+        h("p", { class: "muted" }, "Tip: add ScenePilot to your home screen so it opens like an app, ready to listen.")),
+      h("p", { class: "fine" }, "ScenePilot does not decide who is at fault, what repairs cost, or anyone's legal responsibility. AI observations can be wrong. If anyone is hurt or in danger, call 911 first."),
     ),
     h("div", { class: "card" },
       h("h2", {}, "My info (optional)"),
@@ -666,7 +681,7 @@ function consentScreen(d) {
         ? "Your details are saved on this device. They are never sent to the server."
         : "Add your vehicle and insurance details now so they are ready in an emergency. They stay on this device and are never sent to the server."),
       h("button", { class: "btn", onclick: () => { state.view = "profile"; render(); } }, saved ? "Edit my info" : "Set up my info")),
-    h("button", { class: "btn primary", onclick: async () => {
+    h("button", { class: "btn primary big", onclick: async () => {
       store("consent", CONSENT_VERSION);   // remembered on this device, so the next accident starts at the first question
       await primeMic();
       act("consent");
@@ -779,20 +794,21 @@ function safetyScreen(d) {
   const send = () => { const v = input.value.trim(); if (v) act("safety-answer", { answer: v }); };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   const optionValue = { "Yes": "yes", "No": "no", "Not sure": "unsure" };
-  const answerBtn = (o, primary) => h("button", {
-    class: "btn big" + (primary ? " primary" : ""), onclick: () => act("safety-answer", { answer: optionValue[o] || o }),
-  }, o);
-  const [first, ...rest] = d.prompt.options;
+  const send1 = (o) => act("safety-answer", { answer: optionValue[o] || o });
+  const [yes, no, unsure] = d.prompt.options;
   return [
-    h("div", { class: "card" },
-      h("div", { class: "kicker" }, `SAFETY CHECK ${Math.min(answered + 1, total)}/${total}`),
+    h("div", { class: "card question" },
+      h("div", { class: "progress", "aria-hidden": "true" }, Array.from({ length: total }, (_, i) => h("span", { class: i <= Math.min(answered, total - 1) ? "on" : "" }))),
+      h("div", { class: "kicker" }, `SAFETY CHECK ${Math.min(answered + 1, total)} OF ${total}`),
       h("p", { class: "lead" }, d.prompt.text),
-      h("div", { class: "stack" },
-        answerBtn(first, true),
-        h("div", { class: "two" }, rest.map((o) => answerBtn(o, false))),
-        micRow())),
-    h("div", { class: "card" },
-      h("label", { for: "free", style: "margin-top:0" }, "Or answer in your own words"),
+      h("div", { class: "stack", style: "margin-top:16px" },
+        h("button", { class: "btn answer", onclick: () => send1(yes) }, yes),
+        h("button", { class: "btn outline", onclick: () => send1(no) }, no),
+        h("button", { class: "linkbtn", onclick: () => send1(unsure) }, unsure),
+        micRow("Or just say it"))),
+    h("details", { class: "card more" },
+      h("summary", {}, "Type your answer instead"),
+      h("label", { for: "free", style: "margin-top:8px" }, "In your own words"),
       h("div", { class: "row" }, input, h("button", { class: "btn small primary", onclick: send }, "Send"))),
   ];
 }

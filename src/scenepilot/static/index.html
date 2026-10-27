@@ -3,45 +3,59 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1556c8">
+  <meta name="theme-color" content="#12263f">
   <title>ScenePilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header class="top">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">
-        <svg class="ico sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 17H3z"/><path d="M12 10v4"/><path d="M12 17.2v.1"/></svg>
-      </span>
-      <span>ScenePilot <span class="brand-sub">Accident guide</span></span>
+    <div class="top-in">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 17H3z"/><path d="M12 10v4"/><path d="M12 17.2v.1"/></svg>
+        </span>
+        <span>ScenePilot</span>
+      </div>
+      <div class="top-actions">
+        <a id="call911" class="call911" href="tel:911" aria-label="Call 911 now">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z"/></svg>
+          911
+        </a>
+        <button id="menu-btn" class="menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="menu">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+        </button>
+      </div>
     </div>
-    <div class="top-actions">
-      <a id="call911" class="call911" href="tel:911" aria-label="Call 911 now">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z"/></svg>
-        911
-      </a>
-      <button id="voice" class="icon-btn" type="button" aria-label="Turn spoken guidance on or off" aria-pressed="true">
+    <div class="stripe" aria-hidden="true"></div>
+    <nav id="menu" class="menu" aria-label="Menu" hidden>
+      <button id="voice" class="menu-item" type="button" aria-label="Turn spoken guidance on or off" aria-pressed="true">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/></svg>
+        <span>Spoken guidance</span>
       </button>
-      <button id="mic" class="icon-btn" type="button" aria-label="Voice answers on or off" aria-pressed="false" hidden>
+      <button id="mic" class="menu-item" type="button" aria-label="Voice answers on or off" aria-pressed="false" hidden>
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/></svg>
+        <span>Voice answers</span>
       </button>
-      <button id="ask" class="icon-btn" type="button" aria-label="Ask a question">
+      <button id="ask" class="menu-item" type="button" aria-label="Ask a question">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 .5c0 1.7-2.5 2-2.5 3.5"/><path d="M12 17v.1"/></svg>
+        <span>Ask a question</span>
       </button>
-      <button id="watch" class="icon-btn" type="button" aria-label="Conversation watch">
+      <button id="watch" class="menu-item" type="button" aria-label="Conversation watch">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9a5 5 0 0110 0c0 3-3 3.5-3 6.5a2.5 2.5 0 01-5 0"/><path d="M10 9a2 2 0 014 0"/></svg>
+        <span>Conversation watch</span>
       </button>
-      <button id="profile" class="icon-btn" type="button" aria-label="My info">
+      <button id="profile" class="menu-item" type="button" aria-label="My info">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
+        <span>My info</span>
       </button>
-      <button id="restart" class="icon-btn" type="button" aria-label="Start over">
+      <button id="restart" class="menu-item" type="button" aria-label="Start over">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/></svg>
+        <span>Start over</span>
       </button>
-    </div>
+    </nav>
   </header>
   <nav id="steps" class="steps" aria-label="Progress"></nav>
   <main id="app" aria-live="polite"></main>
