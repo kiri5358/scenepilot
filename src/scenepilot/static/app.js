@@ -310,7 +310,18 @@ $voice.addEventListener("click", () => {
   if (state.voiceOn) { state.spokenKey = null; maybeSpeak(); } else stopSpeaking();
 });
 $restart.addEventListener("click", restart);
-document.getElementById("home").addEventListener("click", restart);
+// The logo goes back to the very first (consent) screen. Nothing is recorded before the photos step, so only ask after that.
+document.getElementById("home").addEventListener("click", () => {
+  const stage = state.data && state.data.session.stage;
+  const early = !stage || ["consent", "safety", "emergency", "guide"].includes(stage);
+  if (!early && !confirm("Go back to the first screen? This starts a new accident.")) return;
+  stopSpeaking(); stopWatch();
+  store("consent", null); store("sid", null);
+  state.view = null; state.lastPhoto = null; state.skipOpen = false;
+  state.geo = { status: "idle" };
+  startLocationLookup();
+  run("Starting…", startSession);
+});
 function openAsk() {
   stopWatch();
   stopListening();
