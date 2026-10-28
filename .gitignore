@@ -24,3 +24,8 @@ android-app/android/capacitor-cordova-android-plugins/
 
 # IDE settings (personal paths and state)
 .idea/
+
+# Internal planning notes (kept locally, not part of the public repo)
+ScenePilot_인계/
+docs/진행현황_*.md
+docs/ScenePilot_목업.html

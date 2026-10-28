@@ -202,3 +202,7 @@ docs/             dialogue script and project notes
 - A question typed or spoken into **Ask a question** goes through our server to a Nemotron model on Nebius Token Factory. Along with it the model can read the reviewed state notes and a few non-personal facts about the session (situation level, accident state, photo statuses). It is not given statements, plates or contact details. The consent screen says so, and the consent version was raised so everyone sees it again.
 - Sessions live only in server memory (up to 500) and disappear when the server restarts. There is no retention policy yet.
 - The app asks for no account. On the phone it stores only the session id, a voice on/off choice, an optional insurer phone number, and the optional "My info" card. The "My info" card is never sent to the server (it is added to the summary on your screen and when you copy it).
+
+## License
+
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 HiFive. The NVIDIA models are used under their own licenses (see the model table above).
