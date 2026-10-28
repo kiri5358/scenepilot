@@ -310,6 +310,7 @@ $voice.addEventListener("click", () => {
   if (state.voiceOn) { state.spokenKey = null; maybeSpeak(); } else stopSpeaking();
 });
 $restart.addEventListener("click", restart);
+document.getElementById("home").addEventListener("click", restart);
 function openAsk() {
   stopWatch();
   stopListening();
