@@ -7,25 +7,25 @@ and cannot change the stage, the emergency level, or pass/fail.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from .checklist import ITEM_BY_ID, ITEMS, ItemStatus, PhotoVerdict, evaluate_photo
+from .checklist import ITEM_BY_ID, ITEMS, ItemStatus, PhotoVerdict, evaluate_photo, item_instruction, item_title
 from .emergency import (
     EMERGENCY_NUMBERS,
     QUESTION_IDS,
-    SAFETY_QUESTIONS,
     SKIPPED_WHEN_EMERGENCY,
     Answer,
     CallButton,
     EmergencyDecision,
     evaluate,
     parse_alternatives,
+    safety_questions,
 )
 from .guard import filter_items
-from . import states
+from . import kr, states
 from .playbooks import guide_steps
 from .schemas import PhotoAnalysis
 
@@ -77,6 +77,14 @@ INFO_FIELDS = {
 }
 
 
+def info_fields(country: str = "US") -> dict[str, str]:
+    return kr.INFO_FIELDS if kr.is_kr(country) else INFO_FIELDS
+
+
+def source_label(country: str = "US") -> dict[Source, str]:
+    return {Source(k): v for k, v in kr.SOURCE_LABEL.items()} if kr.is_kr(country) else SOURCE_LABEL
+
+
 class PhotoSlot(BaseModel):
     item_id: str
     status: ItemStatus = ItemStatus.PENDING
@@ -108,6 +116,7 @@ class Session(BaseModel):
     extra_mode: bool = False  # True while taking the extra photos after the core ones
     info: dict[str, InfoValue] = Field(default_factory=dict)
     questions_asked: int = 0  # free questions put to the helper (capped per session)
+    coach_calls: int = 0  # live-coaching requests (capped per session)
 
 
 # ---------- Creation and consent ----------
@@ -115,7 +124,12 @@ class Session(BaseModel):
 def new_session(country: str = "US") -> Session:
     if country not in EMERGENCY_NUMBERS:
         raise ValueError(f"Unsupported country: {country}")
-    return Session(country=country)
+    s = Session(country=country)
+    if kr.is_kr(country):
+        s.accident_state = states.KR  # one jurisdiction: nobody is asked which state
+        s.accident_state_via = "system"
+        s.slots = [PhotoSlot(item_id=i) for i in kr.PHOTO_ORDER]  # my damage, the other car, then the scene
+    return s
 
 
 def _require(s: Session, *stages: Stage) -> None:
@@ -199,7 +213,7 @@ def _after_safety(s: Session) -> None:
 def guide(s: Session, action: str) -> None:
     """Move through the step-by-step guidance. action: next | back | skip."""
     _require(s, Stage.GUIDE)
-    steps = guide_steps(s.emergency.level, s.safety_answers, s.accident_state)
+    steps = guide_steps(s.emergency.level, s.safety_answers, s.accident_state, s.country)
     if action == "next":
         current = steps[min(s.guide_index, len(steps) - 1)]
         if current.kind == "state" and s.accident_state is None:
@@ -223,7 +237,7 @@ def set_accident_state(s: Session, code: str, via: str = "manual") -> None:
     """
     if via not in ("manual", "location", "location_auto"):
         raise ValueError(f"Unknown state source: {via}")
-    if not states.valid_choice(code):
+    if not states.valid_choice_for(code, s.country):
         raise ValueError(f"Unknown state choice: {code}")
     if via == "location_auto":
         # In an emergency nobody can be asked: the phone's location picks the state without a question.
@@ -238,7 +252,7 @@ def set_accident_state(s: Session, code: str, via: str = "manual") -> None:
     _require(s, Stage.GUIDE)
     s.accident_state = code
     s.accident_state_via = via
-    steps = guide_steps(s.emergency.level, s.safety_answers, s.accident_state)
+    steps = guide_steps(s.emergency.level, s.safety_answers, s.accident_state, s.country)
     ask = next((i for i, st in enumerate(steps) if st.kind == "state"), None)
     if ask is not None and s.guide_index == ask:
         s.guide_index = ask + 1
@@ -321,7 +335,7 @@ def submit_photo(s: Session, analysis: PhotoAnalysis) -> PhotoVerdict:
     if item_id is None:
         raise StateError("There are no photo steps left.")
     slot = _slot(s, item_id)
-    verdict = evaluate_photo(ITEM_BY_ID[item_id], analysis)
+    verdict = evaluate_photo(ITEM_BY_ID[item_id], analysis, s.country)
     slot.attempts += 1
     slot.last_message = verdict.message
     if verdict.accepted:
@@ -340,7 +354,7 @@ def skip_item(s: Session, reason: str) -> None:
         raise StateError("There are no photo steps left.")
     slot = _slot(s, item_id)
     slot.status = ItemStatus.SKIPPED
-    slot.skip_reason = reason.strip() or "No reason given"
+    slot.skip_reason = reason.strip() or (kr.SUMMARY["no_reason"] if kr.is_kr(s.country) else "No reason given")
     _advance_if_photos_done(s)
 
 
@@ -356,6 +370,26 @@ def set_info(s: Session, field: str, value: str, source: Source = Source.USER_ST
         s.info.pop(field, None)
         return
     s.info[field] = InfoValue(value=value, source=source, confirmed=source is Source.USER_STATEMENT)
+
+
+SUGGESTABLE_FIELDS = ("other_contact", "other_insurance", "other_plate", "other_vehicle")
+MAX_SUGGESTION_CHARS = 80
+
+
+def suggest_info(s: Session, field: str, value: str) -> bool:
+    """A detail of the other driver that live coaching heard in the conversation. It is only a suggestion: it is stored as
+    an AI observation that is NOT confirmed, so the summary lists it as unconfirmed until the user says yes. It never
+    replaces something the user typed or confirmed, and it can be given at any stage after the user has agreed to start."""
+    if s.stage is Stage.CONSENT or field not in SUGGESTABLE_FIELDS:
+        return False
+    value = " ".join(str(value).split())
+    if not value or len(value) > MAX_SUGGESTION_CHARS or not filter_items([value])[0]:
+        return False
+    current = s.info.get(field)
+    if current is not None and (current.confirmed or current.source is not Source.AI_OBSERVATION):
+        return False
+    s.info[field] = InfoValue(value=value, source=Source.AI_OBSERVATION, confirmed=False)
+    return True
 
 
 def confirm_info(s: Session, field: str) -> None:
@@ -393,65 +427,73 @@ class Prompt(BaseModel):
 
 
 def next_prompt(s: Session) -> Prompt:
+    ko = kr.is_kr(s.country)
     if s.stage is Stage.CONSENT:
         return Prompt(
             kind="consent",
-            text="ScenePilot guides you through an accident one step at a time and organizes your photos and statements. "
+            text=kr.CONSENT_TEXT if ko else
+            "ScenePilot guides you through an accident one step at a time and organizes your photos and statements. "
             "It does not decide who is at fault, what repairs cost, or anyone's legal responsibility. AI observations can be wrong. Continue?",
-            options=["Agree and start"],
+            options=kr.OPTIONS["consent"] if ko else ["Agree and start"],
         )
     if s.stage is Stage.SAFETY:
         qid = _next_question_id(s)  # the same rule that decides which question the next answer belongs to
-        q = next(q for q in SAFETY_QUESTIONS if q.id == qid)
+        q = next(q for q in safety_questions(s.country) if q.id == qid)
         retry = s.unparsed.get(q.id, 0) > 0
-        text = ("Sorry, I didn't catch that. " if retry else "") + q.text
-        return Prompt(kind="safety_question", text=text, options=["Yes", "No", "Not sure"], item_id=q.id)
+        text = ((kr.RETRY_PREFIX if ko else "Sorry, I didn't catch that. ") if retry else "") + q.text
+        return Prompt(kind="safety_question", text=text, options=kr.OPTIONS["safety"] if ko else ["Yes", "No", "Not sure"], item_id=q.id)
     if s.stage is Stage.EMERGENCY:
         return Prompt(
             kind="emergency",
-            text=s.emergency.title or "Safety first.",
+            text=s.emergency.title or ("안전이 먼저입니다." if ko else "Safety first."),
             actions=s.emergency.actions,
             call_buttons=s.emergency.call_buttons,
-            options=["Got it"],
+            options=kr.OPTIONS["emergency"] if ko else ["Got it"],
         )
     if s.stage is Stage.GUIDE:
-        steps = guide_steps(s.emergency.level, s.safety_answers, s.accident_state)
+        steps = guide_steps(s.emergency.level, s.safety_answers, s.accident_state, s.country)
         i = min(s.guide_index, len(steps) - 1)
         cur = steps[i]
         return Prompt(
             kind="guide", text=cur.text, items=cur.items, steps=[st.text for st in steps], step_index=i, step_kind=cur.kind,
             step_title=cur.note_title, sources=[src.model_dump() for src in cur.sources],
-            states=states.supported() if cur.kind == "state" else [], state_choice=s.accident_state,
-            state_disclaimer=states.load().disclaimer if cur.kind == "state_note" else None,
-            options=["Next", "Skip to photos"],
+            states=states.supported(s.country) if cur.kind == "state" else [], state_choice=s.accident_state,
+            state_disclaimer=states.disclaimer_for(s.accident_state) if cur.kind == "state_note" else None,
+            options=kr.OPTIONS["guide"] if ko else ["Next", "Skip to photos"],
         )
     if s.stage is Stage.PHOTOS:
         item_id = current_item_id(s)
         item = ITEM_BY_ID[item_id]
         slot = _slot(s, item_id)
-        warning = "Only take photos where you are safe." if s.emergency.level != "none" else None
+        warning = (kr.PHOTO_WARNING if ko else "Only take photos where you are safe.") if s.emergency.level != "none" else None
         return Prompt(
-            kind="photo", text=item.instruction, item_id=item_id, warning=warning,
+            kind="photo", text=item_instruction(item, s.country), item_id=item_id, warning=warning,
             retake_message=slot.last_message if slot.status is ItemStatus.NEEDS_RETAKE else None,
-            options=["Skip"],
+            options=kr.OPTIONS["photo"] if ko else ["Skip"],
         )
     if s.stage is Stage.HUB:
         extra = len(_unresolved(s, False))
-        options = ["Create summary"]
-        if extra:
-            options.append(f"Take more photos ({extra} left)")
-        options.append("Add details")
+        if ko:
+            options = [kr.HUB_CREATE] + ([kr.HUB_MORE.format(n=extra)] if extra else []) + [kr.HUB_DETAILS]
+        else:
+            options = ["Create summary"]
+            if extra:
+                options.append(f"Take more photos ({extra} left)")
+            options.append("Add details")
         return Prompt(
             kind="hub",
-            text="The essential photos are done. You can create the summary now, or finish the rest when it is safe.",
+            text=kr.HUB_TEXT if ko else
+            "The essential photos are done. You can create the summary now, or finish the rest when it is safe.",
             options=options,
         )
     if s.stage is Stage.INFO:
         return Prompt(
             kind="info",
-            text="Add any other details you have, or go straight to the summary.",
-            options=list(INFO_FIELDS.values()),
+            text=kr.INFO_TEXT if ko else "Add any other details you have, or go straight to the summary.",
+            options=list(info_fields(s.country).values()),
         )
+    if ko:  # the pre-leave check is read out after the summary is announced
+        return Prompt(kind="summary", text=kr.SUMMARY_READY, items=leave_check(s))
     return Prompt(kind="summary", text="Your summary is ready.")
 
 
@@ -472,6 +514,10 @@ class Summary(BaseModel):
     sections: list[SummarySection]
     missing: list[str]
     disclaimer: str = DISCLAIMER
+    country: str = "US"
+    leave_check: list[str] = Field(default_factory=list)   # Korea edition: what is still missing before leaving (warning only)
+    next_steps: list[str] = Field(default_factory=list)    # Korea edition: what to do after the scene
+    cleanup: str | None = None                             # Korea edition: advice to clear the other driver's details
 
 
 _STATE_VIA_NOTE = {
@@ -486,90 +532,134 @@ _STATUS_LABEL = {
     ItemStatus.PENDING: "Not taken",
 }
 _DAMAGE_LABEL = {"none": "No visible damage", "minor": "Looks minor", "major": "Looks significant", "unclear": "Can't tell"}
+_EN_SUMMARY = {
+    "time": "Time", "level": "Situation level (rule-based)", "not_asked": "Not asked", "no_answer": "No answer",
+    "account_missing": "Your account of what happened", "reason": "reason", "visible_damage": "visible damage",
+    "observation": "observation", "not_confirmed_yet": "not yet confirmed", "needs_confirmation": "needs your confirmation",
+    "basic": "Basic info", "safety": "Injuries and emergency", "statement": "Your statement", "photos": "Photos",
+    "ai": "AI observations (unverified)", "others": "Other driver and witnesses", "none": "(none)",
+    "unconfirmed_section": "Not confirmed", "notice": "Notice",
+}
+_EN_LEVEL = {"emergency": "Emergency", "caution": "Caution", "none": "Standard"}
+
+
+def _words(country: str) -> dict[str, str]:
+    return kr.SUMMARY if kr.is_kr(country) else _EN_SUMMARY
 
 
 def build_summary(s: Session) -> Summary:
     """Build the intake summary. Code fills the structure and wording; model sentences are included only if they pass the forbidden-output check."""
     _require(s, Stage.SUMMARY)
+    ko = kr.is_kr(s.country)
+    w = _words(s.country)
+    fields = info_fields(s.country)
+    answer_label = {Answer(k): v for k, v in kr.ANSWER_LABEL.items()} if ko else _ANSWER_LABEL
+    status_label = {ItemStatus(k): v for k, v in kr.STATUS_LABEL.items()} if ko else _STATUS_LABEL
+    damage_label = kr.DAMAGE_LABEL if ko else _DAMAGE_LABEL
+    level_label = (kr.LEVEL_LABEL if ko else _EN_LEVEL)[s.emergency.level]
     missing: list[str] = []
 
-    basic = [
-        SummaryItem(label="Time", value=s.created_at.strftime("%Y-%m-%d %H:%M UTC"), source=Source.SYSTEM),
-        SummaryItem(
+    when = (
+        s.created_at.astimezone(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M KST") if ko
+        else s.created_at.strftime("%Y-%m-%d %H:%M UTC")
+    )
+    basic = [SummaryItem(label=w["time"], value=when, source=Source.SYSTEM)]
+    if not ko:  # the Korea edition has one jurisdiction, so there is no state to record
+        basic.append(SummaryItem(
             label="State where the accident happened",
             value=states.name_of(s.accident_state) + _STATE_VIA_NOTE.get(s.accident_state_via if s.accident_state else "", ""),
             source=(
                 Source.UNCONFIRMED if not s.accident_state or s.accident_state_via == "location_auto" else Source.USER_STATEMENT
             ),
-        ),
-    ]
+        ))
 
     safety = []
-    for q in SAFETY_QUESTIONS:
+    for q in safety_questions(s.country):
         ans = s.safety_answers.get(q.id)
-        safety.append(SummaryItem(label=q.text, value=_ANSWER_LABEL[ans] if ans else ("Not asked" if q.id in SKIPPED_WHEN_EMERGENCY and s.emergency.level == "emergency" else "No answer"), source=Source.USER_STATEMENT if ans else Source.UNCONFIRMED))
-    level_label = {"emergency": "Emergency", "caution": "Caution", "none": "Standard"}[s.emergency.level]
-    safety.append(SummaryItem(label="Situation level (rule-based)", value=level_label, source=Source.SYSTEM))
+        shown = answer_label[ans] if ans else (w["not_asked"] if q.id in SKIPPED_WHEN_EMERGENCY and s.emergency.level == "emergency" else w["no_answer"])
+        safety.append(SummaryItem(label=q.text, value=shown, source=Source.USER_STATEMENT if ans else Source.UNCONFIRMED))
+    safety.append(SummaryItem(label=w["level"], value=level_label, source=Source.SYSTEM))
 
     statement_items = []
     if "statement" in s.info:
         iv = s.info["statement"]
-        statement_items.append(SummaryItem(label=INFO_FIELDS["statement"], value=iv.value, source=iv.source))
+        statement_items.append(SummaryItem(label=fields["statement"], value=iv.value, source=iv.source))
     else:
-        missing.append("Your account of what happened")
+        missing.append(w["account_missing"])
 
     photos, ai = [], []
     for slot in s.slots:
-        title = ITEM_BY_ID[slot.item_id].title
-        detail = _STATUS_LABEL[slot.status]
+        title = item_title(ITEM_BY_ID[slot.item_id], s.country)
+        detail = status_label[slot.status]
         if slot.status is ItemStatus.SKIPPED:
-            detail += f" (reason: {slot.skip_reason})"
+            detail += f" ({w['reason']}: {slot.skip_reason})"
         photos.append(SummaryItem(label=title, value=detail, source=Source.PHOTO if slot.analysis else Source.UNCONFIRMED))
         if slot.status is not ItemStatus.CAPTURED:
             missing.append(f"{title}: {detail}")
         if slot.analysis:
             a = slot.analysis
-            ai.append(SummaryItem(label=f"{title} - visible damage", value=_DAMAGE_LABEL[a.visible_damage.value], source=Source.AI_OBSERVATION))
+            ai.append(SummaryItem(label=f"{title} - {w['visible_damage']}", value=damage_label[a.visible_damage.value], source=Source.AI_OBSERVATION))
             observations, _ = filter_items(a.observations)
             for text in observations:
-                ai.append(SummaryItem(label=f"{title} - observation", value=text, source=Source.AI_OBSERVATION))
+                ai.append(SummaryItem(label=f"{title} - {w['observation']}", value=text, source=Source.AI_OBSERVATION))
 
     others = []
     for field in ("other_plate", "other_vehicle", "other_contact", "other_insurance", "witness"):
         iv = s.info.get(field)
         if iv is None:
-            missing.append(INFO_FIELDS[field])
+            missing.append(fields[field])
             continue
         if iv.confirmed:
-            others.append(SummaryItem(label=INFO_FIELDS[field], value=iv.value, source=iv.source))
+            others.append(SummaryItem(label=fields[field], value=iv.value, source=iv.source))
         else:
-            others.append(SummaryItem(label=INFO_FIELDS[field], value=f"{iv.value} (not yet confirmed)", source=Source.UNCONFIRMED))
-            missing.append(f"{INFO_FIELDS[field]}: needs your confirmation")
+            others.append(SummaryItem(label=fields[field], value=f"{iv.value} ({w['not_confirmed_yet']})", source=Source.UNCONFIRMED))
+            missing.append(f"{fields[field]}: {w['needs_confirmation']}")
 
     sections = [
-        SummarySection(title="Basic info", items=basic),
-        SummarySection(title="Injuries and emergency", items=safety),
-        SummarySection(title="Your statement", items=statement_items),
-        SummarySection(title="Photos", items=photos),
-        SummarySection(title="AI observations (unverified)", items=ai),
-        SummarySection(title="Other driver and witnesses", items=others),
+        SummarySection(title=w["basic"], items=basic),
+        SummarySection(title=w["safety"], items=safety),
+        SummarySection(title=w["statement"], items=statement_items),
+        SummarySection(title=w["photos"], items=photos),
+        SummarySection(title=w["ai"], items=ai),
+        SummarySection(title=w["others"], items=others),
     ]
-    return Summary(sections=sections, missing=missing)
+    return Summary(
+        sections=sections, missing=missing, disclaimer=kr.DISCLAIMER if ko else DISCLAIMER, country=s.country,
+        leave_check=leave_check(s), next_steps=list(kr.NEXT_STEPS) if ko else [], cleanup=kr.CLEANUP if ko else None,
+    )
+
+
+def leave_check(s: Session) -> list[str]:
+    """Korea edition: what to look at before leaving the scene. Fixed sentences chosen by code from what the session lacks.
+    It only warns; nothing here stops anyone from leaving."""
+    if not kr.is_kr(s.country):
+        return []
+    out = [
+        kr.LEAVE_PHOTO.format(title=item_title(ITEM_BY_ID[slot.item_id], s.country))
+        for slot in s.slots if ITEM_BY_ID[slot.item_id].core and slot.status is not ItemStatus.CAPTURED
+    ]
+    for field, sentence in kr.LEAVE_INFO.items():
+        iv = s.info.get(field)
+        if iv is None or not iv.confirmed:
+            out.append(sentence)
+    return [kr.LEAVE_LEAD] + (out or [kr.LEAVE_NOTHING]) + list(kr.LEAVE_ALWAYS)
 
 
 def render_summary_text(summary: Summary) -> str:
     """Plain text for copying and sharing. Every item carries a source tag."""
+    w = _words(summary.country)
+    labels = source_label(summary.country)
     lines: list[str] = []
     for n, sec in enumerate(summary.sections, 1):
         lines.append(f"{n}. {sec.title}")
         if not sec.items:
-            lines.append("  - (none)")
+            lines.append(f"  - {w['none']}")
         for it in sec.items:
-            lines.append(f"  - {it.label}: {it.value} [{SOURCE_LABEL[it.source]}]")
+            lines.append(f"  - {it.label}: {it.value} [{labels[it.source]}]")
         lines.append("")
-    lines.append(f"{len(summary.sections) + 1}. Not confirmed")
-    lines.extend(f"  - {m}" for m in summary.missing) if summary.missing else lines.append("  - (none)")
+    lines.append(f"{len(summary.sections) + 1}. {w['unconfirmed_section']}")
+    lines.extend(f"  - {m}" for m in summary.missing) if summary.missing else lines.append(f"  - {w['none']}")
     lines.append("")
-    lines.append(f"{len(summary.sections) + 2}. Notice")
+    lines.append(f"{len(summary.sections) + 2}. {w['notice']}")
     lines.append(f"  {summary.disclaimer}")
     return "\n".join(lines)

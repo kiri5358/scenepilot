@@ -48,7 +48,7 @@ def test_unanswered_questions_are_ignored():
 
 def test_unsupported_country():
     with pytest.raises(ValueError):
-        evaluate({}, "KR")
+        evaluate({}, "ZZ")
 
 
 @pytest.mark.parametrize(

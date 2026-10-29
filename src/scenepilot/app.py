@@ -17,8 +17,10 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from . import session as sm
 from . import assistant
+from . import coach as coach_module
 from . import ratelimit
-from .checklist import ITEM_BY_ID
+from . import kr
+from .checklist import ITEM_BY_ID, item_title
 from .config import get_settings
 from .emergency import QUESTION_IDS, danger_signals
 from .guard import sanitize_analysis
@@ -71,14 +73,14 @@ def _view(s: sm.Session, **extra) -> dict:
         "prompt": sm.next_prompt(s).model_dump(mode="json"),
         "checklist": [
             {
-                "id": sl.item_id, "title": ITEM_BY_ID[sl.item_id].title, "status": sl.status.value,
+                "id": sl.item_id, "title": item_title(ITEM_BY_ID[sl.item_id], s.country), "status": sl.status.value,
                 "attempts": sl.attempts, "core": ITEM_BY_ID[sl.item_id].core,
             }
             for sl in s.slots
         ],
         "photo_progress": sm.photo_progress(s),
         "safety_progress": {"answered": len(s.safety_answers), "total": sm.safety_question_count(s)},
-        "info_fields": sm.INFO_FIELDS,
+        "info_fields": sm.info_fields(s.country),
         **extra,
     }
     if s.stage is sm.Stage.SUMMARY:
@@ -101,11 +103,12 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str]:
     return data, mime
 
 
-async def _analyze(file: UploadFile, request: Request):
+async def _analyze(file: UploadFile, request: Request, country: str = "US"):
     data, mime = await _read_image(file)
     ratelimit.enforce(request, "photo")  # after the free checks, right before the paid model call
     try:
-        result = await analyze_photo(data, mime, settings=get_settings())
+        result = await analyze_photo(
+            data, mime, settings=get_settings(), language=kr.VISION_LANGUAGE if kr.is_kr(country) else "English")
     except VisionError as e:
         raise HTTPException(502, str(e)) from e
     analysis, removed = sanitize_analysis(result.analysis)
@@ -139,6 +142,11 @@ class SafetyAnswer(BaseModel):
 
 class AskIn(BaseModel):
     question: Annotated[str, StringConstraints(min_length=1, max_length=assistant.MAX_QUESTION_CHARS)]
+
+
+class CoachIn(BaseModel):
+    text: Annotated[str, StringConstraints(max_length=coach_module.MAX_TEXT_CHARS * 2)]
+    elapsed_s: int = Field(default=0, ge=0, le=7200)  # seconds since the user switched coaching on
 
 
 class Skip(BaseModel):
@@ -192,6 +200,14 @@ async def get_session(session_id: str) -> dict:
     return _view(_get(session_id))
 
 
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str) -> dict:
+    """Clear everything the server holds for one accident (answers, photo analyses, details). Photos themselves are never kept."""
+    _get(session_id)  # 404 when it is already gone
+    SESSIONS.pop(session_id, None)
+    return {"ok": True}
+
+
 @app.post("/api/sessions/{session_id}/consent")
 async def consent(session_id: str) -> dict:
     s = _get(session_id)
@@ -224,6 +240,24 @@ async def ask_question(session_id: str, request: Request, body: AskIn) -> dict:
     }
 
 
+@app.post("/api/sessions/{session_id}/coach")
+async def coach_endpoint(session_id: str, request: Request, body: CoachIn) -> dict:
+    """Live coaching (Korea edition): read the last sentences of the talk and say which fixed reminder fits. The text is
+    used for this one request and never stored or logged."""
+    s = _get(session_id)
+    if not kr.is_kr(s.country):
+        raise HTTPException(404, "Live coaching is only in the Korea edition.")
+    if s.stage is sm.Stage.CONSENT:
+        raise HTTPException(409, "Please agree to start first.")
+    if s.coach_calls >= coach_module.MAX_CALLS_PER_SESSION:
+        raise HTTPException(429, "That is the most coaching requests for one accident.")
+    if len(" ".join(body.text.split())) >= coach_module.MIN_TEXT_CHARS:
+        ratelimit.enforce(request, "coach")  # only calls that reach the model count
+    s.coach_calls += 1
+    result = await coach_module.coach(s, body.text, body.elapsed_s)
+    return {"ok": result.ok, "hints": result.hints, "suggested": result.suggested}
+
+
 @app.post("/api/sessions/{session_id}/ack-emergency")
 async def ack_emergency(session_id: str) -> dict:
     s = _get(session_id)
@@ -232,14 +266,22 @@ async def ack_emergency(session_id: str) -> dict:
 
 
 @app.get("/api/states")
-async def list_states() -> dict:
+async def list_states(country: str = "US") -> dict:
     data = states.load()
-    return {"states": states.supported(), "disclaimer": data.disclaimer, "retrieved": data.retrieved, "reviewed": data.reviewed}
+    disclaimer = data.disclaimer_kr if kr.is_kr(country) else data.disclaimer
+    return {"states": states.supported(country), "disclaimer": disclaimer, "retrieved": data.retrieved, "reviewed": data.reviewed}
+
+
+@app.get("/api/insurers")
+async def list_insurers(country: str = "US") -> dict:
+    if not kr.is_kr(country):
+        return {"insurers": []}
+    return {"insurers": list(kr.INSURERS), "verified": kr.INSURERS_VERIFIED, "note": kr.INSURER_NOTE}
 
 
 @app.get("/api/watch-rules")
-async def watch_rules() -> dict:
-    return watch_hints.public_rules()
+async def watch_rules(country: str = "US") -> dict:
+    return watch_hints.public_rules(country)
 
 
 @app.post("/api/sessions/{session_id}/state")
@@ -261,7 +303,7 @@ async def submit_photo(session_id: str, request: Request, file: UploadFile = Fil
     s = _get(session_id)
     if s.stage is not sm.Stage.PHOTOS:  # check the stage before calling the model
         raise HTTPException(409, f"Photos are not accepted in the current stage ({s.stage.value}).")
-    analysis, removed, result = await _analyze(file, request)
+    analysis, removed, result = await _analyze(file, request, s.country)
     verdict = _call(sm.submit_photo, s, analysis)
     return _view(
         s,

@@ -30,7 +30,8 @@
 
   Speech.listen = (options = {}) => {
     if (Speech.fakeActive()) return webListen(options);
-    const { lang = "en-US", onInterim, onFinal, onError, onEnd } = options;
+    // the language of the edition in use (en-US, or ko-KR in the Korea edition) unless the caller names one
+    const { lang = Speech.getLang ? Speech.getLang() : "en-US", onInterim, onFinal, onError, onEnd } = options;
     const handles = [];
     let last = "";
     let guesses = [];

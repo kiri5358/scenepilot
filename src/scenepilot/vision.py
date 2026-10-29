@@ -34,6 +34,11 @@ Reply with ONE JSON object and nothing else, using exactly these keys:
 USER_PROMPT = "Analyze this photo following the rules above and output one JSON object only."
 
 
+def system_prompt(language: str = "English") -> str:
+    """The same rules, with the free-text fields written in the user's language (the enum fields stay English)."""
+    return SYSTEM_PROMPT if language == "English" else SYSTEM_PROMPT.replace("short English", f"short {language}")
+
+
 class VisionError(Exception):
     """The model call failed or its output does not match the schema."""
 
@@ -68,6 +73,7 @@ async def analyze_photo(
     settings: Settings | None = None,
     client: AsyncOpenAI | None = None,
     attempts: int = 2,
+    language: str = "English",
 ) -> VisionResult:
     settings = settings or get_settings()
     if client is None:
@@ -78,7 +84,7 @@ async def analyze_photo(
         )
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt(language)},
         {
             "role": "user",
             # Put the image before the text.

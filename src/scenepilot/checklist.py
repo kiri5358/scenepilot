@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from . import kr
 from .guard import guard_or_fallback
 from .schemas import PhotoAnalysis, PlateReadable, SceneType, Sharpness, VisibleDamage
 
@@ -85,6 +86,20 @@ _DEFAULT_MESSAGES = {
 }
 
 
+def item_title(item: ChecklistItem, country: str = "US") -> str:
+    return kr.ITEM_TEXT[item.id][0] if kr.is_kr(country) else item.title
+
+
+def item_instruction(item: ChecklistItem, country: str = "US") -> str:
+    return kr.ITEM_TEXT[item.id][1] if kr.is_kr(country) else item.instruction
+
+
+def default_messages(country: str = "US") -> dict[Reason, str]:
+    if kr.is_kr(country):
+        return {reason: kr.PHOTO_MESSAGES[reason.value] for reason in _DEFAULT_MESSAGES}
+    return _DEFAULT_MESSAGES
+
+
 @dataclass(frozen=True)
 class PhotoVerdict:
     accepted: bool
@@ -92,11 +107,12 @@ class PhotoVerdict:
     message: str | None  # text to show the user when the photo must be retaken
 
 
-def evaluate_photo(item: ChecklistItem, analysis: PhotoAnalysis) -> PhotoVerdict:
+def evaluate_photo(item: ChecklistItem, analysis: PhotoAnalysis, country: str = "US") -> PhotoVerdict:
     """Does the photo satisfy this checklist item? Check order: sharpness, scene, then item-specific conditions."""
+    messages = default_messages(country)
 
     def reject(reason: Reason) -> PhotoVerdict:
-        default = _DEFAULT_MESSAGES[reason]
+        default = messages[reason]
         # Only for blur do we use the model's retake hint; if it contains a forbidden expression we fall back to fixed text.
         if reason is Reason.NOT_CLEAR:
             return PhotoVerdict(False, reason, guard_or_fallback(analysis.retake_hint, default) or default)

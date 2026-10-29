@@ -5,7 +5,47 @@ ScenePilot is a mobile web app for drivers right after a car accident. It guides
 It does not decide who is at fault, what repairs cost, or anyone's legal responsibility. It uses NVIDIA open models in three places (see the table below): photo understanding and a free-question helper call NVIDIA Nemotron models on Nebius Token Factory at run time, and the spoken guidance is NVIDIA Magpie TTS audio.
 
 > Status: hackathon work in progress. We do not claim performance we have not built and measured.
-> The demo targets US drivers (English, 911).
+> **Two editions share one code base.** The **Korea edition** (Korean, emergency numbers 112 and 119, notes from Korean road
+> traffic law) opens by default. The **English US demo** (911, Florida and New York notes) is in the menu ("English (US demo)")
+> or at `?lang=en`. The edition is a property of the session (`country` = `KR` or `US`); the rules, the state machine and
+> the safety principle are the same in both.
+
+## Korea edition (KR)
+
+- **Language and numbers.** Every sentence the server sends in a Korean session is Korean (`src/scenepilot/kr.py`). The header
+  shows 119 (ambulance, fire) and 112 (police). The screens' own English strings are translated by `static/ko.js`.
+- **Answers in Korean.** Spoken or typed answers are understood by rule code (`emergency.py`): a danger sign counts unless it
+  is denied next to it, and "not sure" counts as danger, as in the English edition. The browser recognizer listens in `ko-KR`.
+- **Notes from Korean law.** `data/state_notes.json` has a `KR` entry with four plain-language notes (stop and report, warning
+  triangle and highway, leaving the scene, insurance and foreign drivers) with their sources on law.go.kr. They are a draft
+  (`reviewed: false`): the team has not checked them line by line against the statutes, and the emergency-towing number
+  in the highway note comes from press reports. There is no state question in Korea.
+- **Spoken guidance.** The 46 fixed Korean sentences are synthesized once with NVIDIA Magpie TTS Multilingual (`KO-KR.Aria`,
+  `tools/synthesize_prompts.py --country KR`) into `static/audio/ko/`.
+- **Conversation watch.** Seven Korean phrase rules (fault, police, cash deal, leaving, signing, hostility, pain) match
+  stems with spaces ignored, in the browser, as in the English edition. Nothing is stored by ScenePilot.
+- **Free questions and photos.** The same Nemotron models answer in Korean; the forbidden-output checks (`guard.py`, the
+  answer check in `assistant.py`) have Korean patterns for fault, legal action, money and medical judgments.
+- **Live coaching by a model (Korea edition, off by default).** On the conversation-watch screen the user can switch on "AI 코칭".
+  Then the last few sentences of the talk (text only, no audio) go to the server for one request each (`POST /api/sessions/{id}/coach`,
+  `src/scenepilot/coach.py`). An NVIDIA Nemotron model on Nebius Token Factory (`nvidia/nemotron-3-super-120b-a12b`, thinking
+  switched off) answers with a small JSON: which risky situations it hears (fault admitted, cash deal, wants to leave, asks for a
+  signature, threats, signs of drinking, pain), whether the talk is heated, and any details of the other driver that were said.
+  The same call also returns **one short piece of advice that the model writes itself** for that moment, grounded in the Korean
+  rule notes it is given (free generation, read aloud by the device voice). Rule code vets that sentence before it is spoken: the
+  same forbidden-expression guard as every model text (fault, legal, money, medical, admissions), a length limit, Korean only, no
+  digits except 112/119, no markup, and signing/agreeing/settling/paying may only appear as "do not". A sentence that fails is
+  dropped and our fixed, pre-recorded reminders are used instead; an urgent fixed reminder (threat, drinking) still plays first.
+  Heard details are stored as *unconfirmed* AI observations (the summary lists them as unconfirmed until the user confirms);
+  missing details of the other driver are reminded by code after 45 seconds. The text is used for that request only and is not
+  stored or logged. In our own small test (10 sentences, including one that tried to give the model instructions) one call took
+  about 1.5 s and 9 of 10 risks were read as expected; with the free advice it takes about 2 s. The Nano 30B-A3B model read 5 of 10,
+  so Super is the default (`SCENEPILOT_COACH_MODEL` changes it). Not measured on a phone: the whole delay also includes speech recognition.
+  The legal side of processing a conversation on a server has **not** been reviewed.
+- Closing the scene (Korea edition): photos are taken in the order my damage, the other car and plate, the scene. The first list now includes saving the dashcam video. On the summary screen, code builds a **check before leaving** from what the session still lacks (photos, the other driver's contact, insurer and plate; AI suggestions that are not confirmed do not count) and reads it aloud; it only warns and never blocks. The screen also shows **what to do next** and an advice to clear the other driver's details, with a button that deletes the accident record from the server (`DELETE /api/sessions/{id}`). Every sentence is fixed, passes the forbidden-output guard and has a pre-recorded clip.
+- Foreign drivers and rental cars (Korea edition): two short notes say that the duties of Road Traffic Act art. 54 do not depend on nationality and that the standard car-rental terms (art. 17, as quoted by the Korea Consumer Agency) tell the renter to inform the rental company. The app does **not** judge driving qualification (international permit), compensation or fault. Model answers in Korean are also checked by code: stray foreign-script words, or a law article that our notes do not name, make the answer fall back to the safe text.
+- Insurer claims numbers: on the summary and My info screens the Korea edition offers a short list of 8 non-life insurers (main numbers from the Korea Non-life Insurance Association's car-insurance portal or the insurer's own page, shown with source link and check date 2026-10-29). Picking one only fills the phone box; what the user types wins, and nothing from policy terms is used.
+- Not in the Korea edition yet: earphone-only coaching (the browser cannot choose the microphone), a Korean law review.
 
 ## NVIDIA open models in ScenePilot
 
@@ -170,7 +210,7 @@ The rules require a **demo URL that stays free and unrestricted until judging en
 > Prices, free limits, and sleep policies change. **Check each provider's official page yourself** before deciding.
 
 ### Minimal steps (any PaaS)
-1. Push the repository to GitHub (a public repository with a license is a submission requirement). Check with `git status` that `.env` is not included.
+1. The repository is public and has an MIT license ([LICENSE](LICENSE)). Check with `git status` that `.env` is not included.
 2. Create a new web service from this repository's Dockerfile.
 3. Register `NEBIUS_API_KEY` as a secret. The app reads the `PORT` the service provides (default 8000).
 4. Open the issued `https://...` address on a phone and run consent, safety check, photos, and summary end to end.

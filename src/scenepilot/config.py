@@ -34,6 +34,12 @@ class Settings:
     assistant_model: str
     assistant_max_tokens: int
     cors_origins: tuple[str, ...]
+    # Live coaching reads short pieces of the conversation and has to answer within a few seconds. With thinking switched off
+    # the Super model answered in about 1.5 s and read 9 of 10 test sentences right; the Nano 30B-A3B model took as long
+    # and read 5 of 10 right (Lightning read 3 of 10), so Super is the default. (Our own small test, not a benchmark.)
+    coach_model: str = "nvidia/nemotron-3-super-120b-a12b"
+    coach_max_tokens: int = 700
+    coach_timeout: float = 12.0
 
 
 def get_settings() -> Settings:
@@ -51,4 +57,7 @@ def get_settings() -> Settings:
         # Web origins allowed to call the API from another address. Empty (the default) means same-origin only.
         # The Android app runs from https://localhost, so set SCENEPILOT_CORS_ORIGINS=https://localhost for it.
         cors_origins=tuple(o.strip() for o in os.environ.get("SCENEPILOT_CORS_ORIGINS", "").split(",") if o.strip()),
+        coach_model=os.environ.get("SCENEPILOT_COACH_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+        coach_max_tokens=int(os.environ.get("SCENEPILOT_COACH_MAX_TOKENS", 700)),
+        coach_timeout=float(os.environ.get("SCENEPILOT_COACH_TIMEOUT", 12)),
     )

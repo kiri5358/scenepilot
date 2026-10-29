@@ -105,7 +105,10 @@ def check_build(tmp_path: Path) -> None:
 
 def test_the_app_splits_retry_sentences_the_same_way_as_this_module():
     source = (ROOT / "src" / "scenepilot" / "static" / "app.js").read_text(encoding="utf-8")
-    assert f'const RETRY_PREFIX = "{pa.RETRY_PREFIX} ";' in source
+    from scenepilot import kr
+
+    assert f'"{pa.RETRY_PREFIX} "' in source          # the English edition
+    assert f'"{kr.RETRY_PREFIX}"' in source           # the Korea edition
 
 
 def test_audio_is_optional_the_manifest_may_be_missing():

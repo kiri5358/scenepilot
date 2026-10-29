@@ -19,10 +19,13 @@ _RULES: dict[str, list[str]] = {
         r"\b(ran|run|running|blew through) (a |the )?(red light|stop sign)\b",
         r"\bspeeding\b", r"\b(drunk|intoxicated|dui|dwi)\b", r"\bnegligen(t|ce)\b",
         r"\b(traffic )?violat(ed|ion|ions)\b", r"\billegal(ly)?\b",
+        # Korean (no word boundaries: endings attach to the stem)
+        r"과실", r"잘못", r"책임", r"탓", r"위반", r"음주", r"졸음", r"과속", r"부주의", r"가해자", r"불법",
     ],
     "legal": [
         r"\bsu(e|ed|ing)\b", r"\blawsuit", r"\battorney", r"\blawyer", r"\blegal(ly)?\b", r"\bcourt\b",
         r"\bcriminal\b", r"\bsettle(ment|d)?\b",
+        r"소송", r"고소", r"고발", r"변호사", r"법원", r"형사", r"처벌", r"합의",
     ],
     "money": [
         r"\$\s?\d", r"\b\d[\d,\.]*\s?(dollars?|usd|bucks)\b",
@@ -30,15 +33,18 @@ _RULES: dict[str, list[str]] = {
         r"\binsurance (payout|payment|settlement)\b", r"\bpayouts?\b", r"\bcompensation\b",
         r"\b(cost|costs) (of|to) repair\b", r"\bhow much (it|this|that) (will|would) cost\b",
         r"\btotal(ed|led)? (loss|out)\b", r"\bwrite[- ]?off\b",
+        r"\d[\d,\.]*\s?(?:만\s?)?원", r"수리비", r"견적", r"보험금", r"보상금", r"배상", r"전손",
     ],
     "medical": [
         r"\bfractur(e|ed|es)\b", r"\bbroken (bone|bones|arm|leg|neck|back|rib|ribs)\b", r"\bconcussion\b",
         r"\bdiagnos(e|is|ed)\b", r"\b(dead|death|fatal|fatality|deceased)\b", r"\binternal bleeding\b",
         r"\bwhiplash\b", r"\binjur(y|ies|ed)\b",
+        r"골절", r"뇌진탕", r"진단", r"사망", r"숨졌", r"내출혈", r"염좌", r"부상",
     ],
     "admission_advice": [
         r"\b(don'?t|do not|never) admit\b", r"\bapolog(ize|ise|y)\b", r"\b(don'?t|do not) sign\b",
         r"\bsign (anything|this|the)\b",
+        r"사과하지", r"인정하지", r"서명하지", r"서명하세요",
     ],
 }
 _COMPILED = {cat: [re.compile(p, re.IGNORECASE) for p in pats] for cat, pats in _RULES.items()}

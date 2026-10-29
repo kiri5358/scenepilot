@@ -11,8 +11,14 @@
 const Speech = (() => {
   const SR = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : undefined;
 
+  // Letters, digits, apostrophes and Korean syllables; everything else becomes a space.
   const normalize = (text) =>
-    String(text).toLowerCase().replace(/[’]/g, "'").replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+    String(text).toLowerCase().replace(/[’]/g, "'").replace(/[^a-z0-9'ㄱ-ㆎ가-힣 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+  // The language the recognizer listens for. The Korea edition switches it to ko-KR.
+  let currentLang = "en-US";
+  const setLang = (lang) => { currentLang = lang; };
+  const getLang = () => currentLang;
 
   // ---- Test mode: ?fakespeech=No|Yes|next  replays those phrases, one per listening turn ----
   let fakeItems = null;
@@ -48,7 +54,7 @@ const Speech = (() => {
    * candidate transcripts, best first, when it gives them), onError(message, code), onEnd() always last.
    * Returns { stop() }.
    */
-  function listen({ lang = "en-US", onInterim, onFinal, onError, onEnd } = {}) {
+  function listen({ lang = currentLang, onInterim, onFinal, onError, onEnd } = {}) {
     const ctrl = { stopped: false, stop() { ctrl.stopped = true; if (ctrl.rec) { try { ctrl.rec.abort(); } catch { /* already stopped */ } } } };
 
     if (fakeActive()) {
@@ -152,15 +158,54 @@ const Speech = (() => {
     },
   };
 
+  // Korean commands. Korean words carry endings ("다음으로", "건너뛰어요"), so a phrase counts when it appears anywhere in the
+  // sentence with spaces ignored. A one-syllable phrase must be a word of its own ("네" would otherwise hide in "네비").
+  const COMMANDS_KO = {
+    emergency: {
+      ack: ["알겠어요", "알겠습니다", "네", "예", "응", "확인", "전화했어요", "신고했어요", "했어요", "안전해요", "안전합니다", "괜찮아요", "계속"],
+    },
+    guide: {
+      next: ["다음", "계속", "네", "예", "응", "알겠어요", "알겠습니다", "확인", "넘어가"],
+      repeat: ["다시", "반복", "뭐라고", "한번더"],
+      back: ["뒤로", "이전", "돌아가"],
+      skip: ["건너뛰", "사진촬영", "사진으로"],
+      ask: ["질문", "물어볼", "궁금"],
+    },
+    state: {
+      confirm: ["네", "예", "응", "맞아요", "맞습니다"],
+      back: ["뒤로", "이전"],
+      repeat: ["다시", "반복"],
+      skip: ["건너뛰"],
+    },
+    hub: {
+      summary: ["요약", "마무리", "끝"],
+      photos: ["사진더", "더찍", "사진"],
+      details: ["세부", "정보추가", "추가정보"],
+      ask: ["질문", "물어볼", "궁금"],
+    },
+    ask: {
+      done: ["그만", "끝", "끝났어요", "됐어요", "뒤로", "돌아가", "닫아", "질문없어요"],
+    },
+  };
+
+  const HANGUL = /[가-힣]/;
+
   /** Which command in `table` does the spoken text contain? Returns the command id or null. */
   function match(text, table) {
-    const t = ` ${normalize(text)} `;
+    const norm = normalize(text);
+    const t = ` ${norm} `;
+    const compact = norm.replace(/ /g, "");
+    const tokens = norm.split(" ");
     let best = null;
     let bestLen = 0;
     for (const [id, phrases] of Object.entries(table)) {
       for (const phrase of phrases) {
         const p = normalize(phrase);
-        if (p.length > bestLen && t.includes(` ${p} `)) {
+        if (HANGUL.test(p)) {
+          const pc = p.replace(/ /g, "");
+          const hit = pc.length <= 1 ? tokens.includes(pc) : compact.includes(pc);
+          if (hit && pc.length > bestLen) { best = id; bestLen = pc.length; }
+        } else if (p.length > bestLen && t.includes(` ${p} `)) {
           best = id;
           bestLen = p.length;
         }
@@ -169,7 +214,12 @@ const Speech = (() => {
     return best;
   }
 
-  return { supported, listen, match, COMMANDS, fakeActive, PERMISSION_CODES, normalize };
+  return {
+    supported, listen, match, fakeActive, PERMISSION_CODES, normalize, setLang, getLang,
+    // the command table for the language in use
+    get COMMANDS() { return currentLang === "ko-KR" ? COMMANDS_KO : COMMANDS; },
+    COMMANDS_EN: COMMANDS, COMMANDS_KO,
+  };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = Speech;

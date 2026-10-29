@@ -37,13 +37,18 @@ def connect():
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--voice", default=prompt_audio.DEFAULT_VOICE)
+    parser.add_argument("--country", default="US", choices=["US", "KR"], help="US = English clips, KR = Korean clips (static/audio/ko)")
+    parser.add_argument("--voice", default=None)
     parser.add_argument("--dry-run", action="store_true", help="list the sentences and exit")
     parser.add_argument("--list-voices", action="store_true", help="ask the service which voices it has and exit")
     args = parser.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    prompts = prompt_audio.fixed_prompts()
+    korean = args.country == "KR"
+    args.voice = args.voice or (prompt_audio.KR_VOICE if korean else prompt_audio.DEFAULT_VOICE)
+    language = "ko-KR" if korean else "en-US"
+    out_dir = prompt_audio.KR_AUDIO_DIR if korean else prompt_audio.AUDIO_DIR
+    prompts = prompt_audio.fixed_prompts(args.country)
     if args.dry_run:
         for text in prompts:
             print(text)
@@ -63,7 +68,7 @@ def main() -> None:
     from riva.client.proto.riva_audio_pb2 import AudioEncoding
 
     def synthesize(text: str) -> bytes:
-        response = service.synthesize(text, args.voice, "en-US", sample_rate_hz=SAMPLE_RATE, encoding=AudioEncoding.LINEAR_PCM)
+        response = service.synthesize(text, args.voice, language, sample_rate_hz=SAMPLE_RATE, encoding=AudioEncoding.LINEAR_PCM)
         return response.audio
 
     def encode(pcm: bytes) -> bytes:
@@ -74,8 +79,8 @@ def main() -> None:
         encoder.set_quality(2)
         return bytes(encoder.encode(pcm) + encoder.flush())
 
-    manifest = prompt_audio.build(prompts, prompt_audio.AUDIO_DIR, synthesize, encode, voice=args.voice, log=print)
-    print(f"\n{len(prompts)} sentences, {manifest['_made']} newly synthesized, in {prompt_audio.AUDIO_DIR}")
+    manifest = prompt_audio.build(prompts, out_dir, synthesize, encode, voice=args.voice, log=print)
+    print(f"\n{len(prompts)} sentences, {manifest['_made']} newly synthesized, in {out_dir}")
 
 
 if __name__ == "__main__":

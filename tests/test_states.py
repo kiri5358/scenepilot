@@ -2,7 +2,7 @@ import re
 
 from scenepilot import states
 
-OFFICIAL_HOSTS = {"FL": "leg.state.fl.us", "NY": "nysenate.gov"}
+OFFICIAL_HOSTS = {"FL": ("leg.state.fl.us",), "NY": ("nysenate.gov",), "KR": ("law.go.kr", "ex.co.kr", "consumer.go.kr")}
 
 
 def test_demo_states_are_florida_and_new_york():
@@ -19,7 +19,7 @@ def test_every_note_has_an_official_source_a_version_and_short_text():
         for note in info.notes:
             assert note.sources, (code, note.id)
             for src in note.sources:
-                assert OFFICIAL_HOSTS[code] in src.url, (code, note.id, src.url)
+                assert any(host in src.url for host in OFFICIAL_HOSTS[code]), (code, note.id, src.url)
                 assert src.version and src.title
             assert 0 < len(note.text.split()) <= 60, (code, note.id)
 

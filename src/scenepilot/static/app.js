@@ -22,7 +22,19 @@ const SOURCE_LABEL = {
   unconfirmed: "Unconfirmed", system: "Recorded automatically",
 };
 
+// Two editions share this app: the Korea edition (country KR, Korean, 112/119) is the default, and the English US demo
+// (country US, 911) stays available from the menu or with ?lang=en. The server sends every sentence of a Korean session in
+// Korean; the English strings in this file are translated by Ko.t() (ko.js) when the Korea edition is on.
+function initialCountry() {
+  try {
+    const q = new URLSearchParams(window.location.search).get("lang");
+    if (q === "en" || q === "ko") { store("country", q === "en" ? "US" : "KR"); }
+  } catch { /* no address bar: use the saved choice */ }
+  return store("country") === "US" ? "US" : "KR";
+}
+
 const state = {
+  country: initialCountry(),
   data: null,        // last view sent by the server
   busy: null,        // in-progress message (string) or null
   error: null,
@@ -45,18 +57,22 @@ function store(key, value) {
   return null;
 }
 
+const isKr = () => state.country === "KR";
+const T = (text) => (isKr() && window.Ko ? window.Ko.t(text) : text);   // the Korean wording of one of our English lines
+
 // ---------- Small DOM helper ----------
+const TRANSLATED_ATTRS = new Set(["placeholder", "aria-label", "title"]);
 function h(tag, attrs, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === false || v == null) continue;
     if (k === "class") el.className = v;
     else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? "" : v);
+    else el.setAttribute(k, v === true ? "" : TRANSLATED_ATTRS.has(k) ? T(String(v)) : v);
   }
   for (const c of children.flat()) {
     if (c == null || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    el.append(c instanceof Node ? c : document.createTextNode(T(String(c))));
   }
   return el;
 }
@@ -138,6 +154,17 @@ const CONSENT_POINTS = [
   "The first time, your browser asks to use the microphone and location. Allow both once and it will not ask again on this device. After that the app opens straight to the questions.",
   "If anyone is hurt or in danger, call 911 first.",
 ];
+// The Korea edition does not use the phone's location (there are no states to choose from).
+const CONSENT_POINTS_KR = [
+  "사진은 AI 분석을 위해 서버로 전송됩니다.",
+  "'질문하기'를 쓰면 질문이 서버로 전송되어 AI 모델이 답합니다. 이름 등 개인 정보는 적지 마세요.",
+  "데모에서는 실제 사고 정보가 아니라 예시 사진을 쓰세요.",
+  "동의하면 앱이 질문을 소리 내어 읽고 답을 자동으로 듣습니다. 말로 답해도 되고 화면을 눌러도 됩니다. 듣기를 끄려면 위쪽 메뉴에서 '음성 답변'을 끄세요.",
+  "음성으로 답하면 브라우저가 말한 내용을 자체 음성 서비스로 보낼 수 있습니다.",
+  "처음에는 브라우저가 마이크 사용을 물어봅니다. 한 번 허용하면 이 기기에서는 다시 묻지 않고, 그다음부터는 앱이 바로 질문으로 시작합니다.",
+  "다친 사람이 있거나 위험하면 먼저 119나 112에 전화하세요.",
+];
+const consentPoints = () => (isKr() ? CONSENT_POINTS_KR : CONSENT_POINTS);
 const hasConsent = () => store("consent") === CONSENT_VERSION;
 
 // Ask for the microphone now, while nothing is urgent, so the browser's question never appears during an emergency.
@@ -152,19 +179,80 @@ async function primeMic() {
 }
 
 async function startSession() {
-  let data = await post("/api/sessions", { country: "US" });
+  let data = await post("/api/sessions", { country: state.country });
   if (hasConsent() && data.session.stage === "consent") data = await post(`/api/sessions/${data.session.id}/consent`);
   return data;
 }
 
+// Everything that depends on the edition: the recognizer's and the voice's language, the header's emergency numbers,
+// the menu's own labels, the page language, and the audio clips.
+const EMERGENCY_BUTTONS = {
+  US: [["911", "tel:911", "Call 911 now"]],
+  KR: [["119", "tel:119", "119 구급·소방에 전화"], ["112", "tel:112", "112 경찰에 전화"]],
+};
+function applyCountry() {
+  const ko = isKr();
+  Speech.setLang(ko ? "ko-KR" : "en-US");
+  document.documentElement.lang = ko ? "ko" : "en";
+  const [first, second] = EMERGENCY_BUTTONS[state.country];
+  const a = document.getElementById("call911"), b = document.getElementById("call112");
+  a.lastChild.textContent = ` ${first[0]}`; a.setAttribute("href", first[1]); a.setAttribute("aria-label", first[2]);
+  b.hidden = !second;
+  if (second) { b.lastChild.textContent = ` ${second[0]}`; b.setAttribute("href", second[1]); b.setAttribute("aria-label", second[2]); }
+  // menu labels: the English text is kept on the element so the edition can be switched back
+  document.querySelectorAll("#menu [data-en], #menu-btn[data-en]").forEach((el) => {
+    const en = el.dataset.en;
+    if (el.tagName === "SPAN") el.textContent = ko ? window.Ko.t(en) : en;
+  });
+  document.querySelectorAll("[data-en-label]").forEach((el) => {
+    const en = el.dataset.enLabel;
+    el.setAttribute("aria-label", ko ? window.Ko.t(en) : en);
+  });
+  document.getElementById("lang-label").textContent = ko ? "English (US demo)" : "한국어 (Korea)";
+  document.getElementById("lang-ico").textContent = ko ? "EN" : "KO";
+  document.getElementById("lang").setAttribute("aria-label", ko ? "언어 바꾸기: English" : "Change language: 한국어");
+}
+
+// Korea only: a short list of insurers' claims numbers (with source and date) to pick from. Optional: typing still works.
+async function loadInsurers() {
+  state.insurers = { list: [], verified: "", note: "" };
+  if (!isKr()) return;
+  try {
+    const r = await api("/api/insurers?country=KR");
+    state.insurers = { list: r.insurers || [], verified: r.verified || "", note: r.note || "" };
+  } catch { /* optional */ }
+}
+
+// A dropdown that fills the claims phone box; what the user types or saves always wins over the list.
+function insurerPicker(onPick) {
+  const { list, verified, note } = state.insurers || { list: [] };
+  if (!isKr() || !list.length) return null;
+  const sel = h("select", { id: "insurer-pick", "aria-label": "보험사 선택" },
+    h("option", { value: "" }, "보험사를 골라 번호 채우기"),
+    list.map((x, i) => h("option", { value: String(i) }, x.name)));
+  const info = h("div", { class: "muted", style: "margin-top:6px" });
+  sel.addEventListener("change", () => {
+    const x = list[Number(sel.value)];
+    info.replaceChildren();
+    if (!x) return;
+    onPick(x);
+    info.append(`${x.name} ${x.phone} · 확인일 ${verified} · `,
+      h("a", { href: x.source, target: "_blank", rel: "noopener" }, "출처 보기"), h("br"), note);
+  });
+  return h("div", { class: "insurer-pick" }, sel, info);
+}
+
 async function boot() {
+  applyCountry();
   startLocationLookup();
-  try { state.states = (await api("/api/states")).states; } catch { /* optional: the app works without it */ }
+  try { state.states = (await api("/api/states?country=" + state.country)).states; } catch { /* optional: the app works without it */ }
+  await loadInsurers();
   await loadClips();
   const saved = store("sid");
   if (saved) {
     try {
       state.data = await api(`/api/sessions/${saved}`);
+      if (state.data.session.country !== state.country) throw new Error("another edition");
       if (hasConsent() && state.data.session.stage === "consent") state.data = await post(`/api/sessions/${saved}/consent`);
       render(); return;
     } catch { store("sid", null); }
@@ -172,8 +260,25 @@ async function boot() {
   await run("Starting…", startSession);
 }
 
+async function switchCountry() {
+  const early = !state.data || ["consent", "safety", "emergency", "guide"].includes(state.data.session.stage);
+  if (!early && !confirm(T("Switch the language? This starts a new accident."))) return;
+  stopWatch(); stopListening(); stopSpeaking();
+  state.country = isKr() ? "US" : "KR";
+  store("country", state.country); store("sid", null);
+  state.view = null; state.lastPhoto = null; state.skipOpen = false; state.qa = []; state.spokenKey = null;
+  state.geo = { status: "idle" };
+  watchState.rules = null;
+  applyCountry();
+  try { state.states = (await api("/api/states?country=" + state.country)).states; } catch { state.states = []; }
+  await loadInsurers();
+  await loadClips();
+  startLocationLookup();
+  run("Starting…", startSession);
+}
+
 function restart() {
-  if (!confirm("Start over? You will no longer be able to open what you recorded so far on this device.")) return;
+  if (!confirm(T("Start over? You will no longer be able to open what you recorded so far on this device."))) return;
   state.lastPhoto = null; state.skipOpen = false;
   store("sid", null);
   state.geo = { status: "idle" };
@@ -204,11 +309,12 @@ function loadProfile() {
   try { return JSON.parse(store("profile") || "{}") || {}; } catch { return {}; }
 }
 const profileFilled = (p) => Object.values(p).some((v) => v && String(v).trim());
-const profileRows = (p) => PROFILE_FIELDS.filter(([k]) => p[k] && String(p[k]).trim()).map(([k, label]) => [label, p[k]]);
+const profileFields = () => PROFILE_FIELDS.filter(([k]) => !(isKr() && k === "home_state"));   // Korea has no states
+const profileRows = (p) => profileFields().filter(([k]) => p[k] && String(p[k]).trim()).map(([k, label]) => [T(label), p[k]]);
 function profileText(p) {
   const rows = profileRows(p);
   if (!rows.length) return "";
-  return "Your details (entered by you, kept on your device)\n" + rows.map(([l, v]) => `  - ${l}: ${v}`).join("\n");
+  return T("Your details (entered by you, kept on your device)") + "\n" + rows.map(([l, v]) => `  - ${l}: ${v}`).join("\n");
 }
 
 // ---------- Spoken guidance ----------
@@ -222,8 +328,10 @@ let speaking = false;        // true from the start of a speak() call until its 
 
 const sentenceKey = (text) => String(text).split(/\s+/).filter(Boolean).join(" ");
 
+const clipBase = () => (isKr() ? "static/audio/ko/" : "static/audio/");   // each edition has its own clips and manifest
+
 async function loadClips() {
-  try { clips.map = (await api("static/audio/manifest.json")).items || {}; } catch { clips.map = {}; /* no clips yet: device voice only */ }
+  try { clips.map = (await api(clipBase() + "manifest.json")).items || {}; } catch { clips.map = {}; /* no clips yet: device voice only */ }
 }
 
 function stopSpeaking() {
@@ -236,7 +344,7 @@ function stopSpeaking() {
 function deviceSpeak(text, next) {
   if (!("speechSynthesis" in window)) { setTimeout(next, 0); return; }
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US"; u.rate = SPEECH_RATE;
+  u.lang = isKr() ? "ko-KR" : "en-US"; u.rate = SPEECH_RATE;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; clearTimeout(timer); next(); };
   const timer = setTimeout(finish, Math.max(3000, text.length * 90 + 1500)); // some devices never report the end
@@ -247,7 +355,7 @@ function deviceSpeak(text, next) {
 function sayOne(text, next) {
   const file = clips.map[sentenceKey(text)];
   if (!file) { deviceSpeak(text, next); return; }
-  const audio = new Audio("static/audio/" + file);
+  const audio = new Audio(clipBase() + file);
   audio.playbackRate = SPEECH_RATE;          // browsers keep the pitch, so the voice just speaks faster
   player = audio;
   let finished = false;
@@ -275,12 +383,13 @@ function speak(what, force = false, onDone = null) {
 }
 
 // What a screen says, split into the same fixed sentences the clips were made from.
-const RETRY_PREFIX = "Sorry, I didn't catch that. ";
+const retryPrefix = () => (isKr() ? "죄송해요, 잘 못 들었어요. " : "Sorry, I didn't catch that. ");
 // A state note is long, so it is only announced by its title; Repeat (full = true) reads all of it.
 function speechParts(p, full = false) {
   if (p.step_kind === "state_note" && p.step_title && !full) return [p.step_title];
   let text = p.text || "";
   const parts = [];
+  const RETRY_PREFIX = retryPrefix();
   if (text.startsWith(RETRY_PREFIX)) { parts.push(RETRY_PREFIX.trim()); text = text.slice(RETRY_PREFIX.length); }
   parts.push(text, ...(p.items || []), ...(p.actions || []), p.warning, p.retake_message);
   return parts.filter(Boolean);
@@ -310,11 +419,12 @@ $voice.addEventListener("click", () => {
   if (state.voiceOn) { state.spokenKey = null; maybeSpeak(); } else stopSpeaking();
 });
 $restart.addEventListener("click", restart);
+document.getElementById("lang").addEventListener("click", switchCountry);
 // The logo goes back to the very first (consent) screen. Nothing is recorded before the photos step, so only ask after that.
 document.getElementById("home").addEventListener("click", () => {
   const stage = state.data && state.data.session.stage;
   const early = !stage || ["consent", "safety", "emergency", "guide"].includes(stage);
-  if (!early && !confirm("Go back to the first screen? This starts a new accident.")) return;
+  if (!early && !confirm(T("Go back to the first screen? This starts a new accident."))) return;
   stopSpeaking(); stopWatch();
   store("consent", null); store("sid", null);
   state.view = null; state.lastPhoto = null; state.skipOpen = false;
@@ -354,7 +464,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(fa
 // Off by default. When the user starts it, the microphone listens during the talk with the other driver and a fixed
 // reminder is spoken when a rule's phrase is heard (rules come from the server; matching is plain code in watch.js).
 // It runs only while this screen is open, so it never competes with the hands-free answers. Nothing heard is stored or sent.
-const watchState = { running: false, status: "stopped", message: null, rules: null, cooldown: 30, handle: null, played: [] };
+const watchState = { running: false, status: "stopped", message: null, rules: null, cooldown: 30, handle: null, played: [], coach: false, heard: [], coachError: false };
 
 function stopWatch() {
   if (watchState.handle) watchState.handle.stop();
@@ -365,6 +475,7 @@ function stopWatch() {
 function openWatch() {
   stopListening();
   stopSpeaking();
+  watchState.coach = false; watchState.heard = []; watchState.coachError = false;   // coaching is always off until the user switches it on
   state.view = "watch"; state.error = null;
   render();
 }
@@ -380,13 +491,14 @@ async function startWatch() {
   if (!Speech.supported()) { watchState.message = "Listening needs a secure (HTTPS) page and a browser that supports speech recognition."; render(); return; }
   if (!watchState.rules) {
     try {
-      const r = await api("/api/watch-rules");
-      watchState.rules = r.rules; watchState.cooldown = r.cooldown_seconds;
+      const r = await api("/api/watch-rules?country=" + state.country);
+      watchState.rules = r.rules; watchState.cooldown = r.cooldown_seconds; watchState.compact = !!r.compact;
     } catch (e) { watchState.message = "Could not load the reminders. " + e.message; render(); return; }
   }
-  watchState.running = true; watchState.status = "listening"; watchState.played = [];
+  watchState.running = true; watchState.status = "listening"; watchState.played = []; watchState.heard = []; watchState.coachError = false;
   watchState.handle = Watch.start({
-    speech: Speech, rules: watchState.rules, cooldownSeconds: watchState.cooldown,
+    speech: Speech, rules: watchState.rules, cooldownSeconds: watchState.cooldown, compact: watchState.compact,
+    coach: isKr() && watchState.coach ? { send: sendToCoach, windowChars: 500, minGapMs: 2500 } : null,
     onHint: (rule, done) => {
       watchState.played.unshift(rule.hint);
       if (state.view === "watch") render();
@@ -399,6 +511,55 @@ async function startWatch() {
     },
   });
   render();
+}
+
+// Live coaching (Korea edition). The last sentences go to the server for ONE request; the answer is a list of fixed
+// reminders to play, plus details of the other driver that were said (kept only as unconfirmed suggestions).
+async function sendToCoach(text, seconds) {
+  let r;
+  try {
+    r = await post(`/api/sessions/${sid()}/coach`, { text, elapsed_s: seconds });
+  } catch (e) {
+    watchState.coachError = true;
+    if (state.view === "watch") render();
+    return { hints: [] };
+  }
+  watchState.coachError = !r.ok;
+  if (r.suggested && r.suggested.length) {
+    for (const item of r.suggested) {
+      watchState.heard = watchState.heard.filter((h) => h.field !== item.field);
+      watchState.heard.unshift(item);
+    }
+    try { state.data = await api(`/api/sessions/${sid()}`); } catch { /* the list on this screen is enough */ }
+  }
+  if (state.view === "watch") render();
+  return r;
+}
+
+function coachCard() {
+  if (!isKr()) return null;
+  return h("div", { class: "card" },
+    h("h2", {}, "AI 코칭"),
+    h("p", { class: "muted" }, "켜면 대화를 글자로 바꾼 최근 몇 문장이 서버의 AI 모델(NVIDIA Nemotron)로 전송됩니다. 모델은 위험한 상황과 상대방이 말한 정보를 알아듣고, 지금 상황에 맞는 조언을 직접 짧게 만들어 들려줍니다. 만든 문장은 앱의 안전 검사를 통과해야 하며, 통과하지 못하면 미리 준비한 알림이 대신 나옵니다. 사고의 책임·법률·의료 판단은 하지 않습니다."),
+    h("ul", { class: "muted" },
+      h("li", {}, "글자는 이 요청에만 쓰이고 저장하거나 기록하지 않습니다. 소리는 보내지 않습니다."),
+      h("li", {}, "상대방의 말이 포함될 수 있으니 상대방에게 앱을 쓰고 있다고 미리 알려 주세요."),
+      h("li", {}, "알아들은 정보는 '확인 전' 제안으로만 요약에 들어가고, 직접 확인해야 사실로 바뀝니다."),
+      h("li", {}, "실시간 대화 처리의 법적 문제는 아직 전문가 확인 전입니다. 이 기능은 초안입니다.")),
+    h("button", {
+      class: "btn" + (watchState.coach ? " primary" : ""), "aria-pressed": String(watchState.coach), disabled: watchState.running ? true : null,
+      onclick: () => { watchState.coach = !watchState.coach; render(); },
+    }, watchState.coach ? "AI 코칭 켜짐 (누르면 끔)" : "AI 코칭 켜기"),
+    watchState.running ? h("p", { class: "muted" }, "코칭을 바꾸려면 먼저 듣기를 중지하세요.") : null,
+    watchState.coachError ? h("div", { class: "banner warn" }, icon("alert", "sm"), h("div", {}, "AI 코칭에 연결하지 못했어요. 규칙 알림은 계속 작동합니다.")) : null);
+}
+
+function heardCard() {
+  if (!isKr() || !watchState.heard.length) return null;
+  return h("div", { class: "card" },
+    h("div", { class: "kicker" }, "AI가 들은 정보 (확인 전)"),
+    watchState.heard.map((x) => h("p", { class: "a" }, `${x.label}: ${x.value}`)),
+    h("p", { class: "muted" }, "누구의 정보인지, 맞는지 '세부 정보 추가'에서 확인하세요. 확인하기 전에는 요약에 '미확인'으로 표시됩니다."));
 }
 
 function watchScreen() {
@@ -418,10 +579,12 @@ function watchScreen() {
         on ? h("button", { class: "btn danger big", onclick: () => { stopWatch(); render(); } }, "Stop listening")
            : h("button", { class: "btn primary big", onclick: startWatch }, icon("ear"), "Start listening"),
         h("button", { class: "btn", onclick: closeWatch }, "Back to the steps"))),
+    coachCard(),
     on ? h("div", { class: "card", role: "status" },
       h("div", { class: "kicker" }, watchState.status === "paused" ? "PLAYING A REMINDER" : "LISTENING"),
       watchState.played.length ? h("div", {}, watchState.played.map((t) => h("p", { class: "a" }, t)))
         : h("p", { class: "muted" }, "Reminders appear here when one is spoken.")) : null,
+    heardCard(),
   ];
 }
 $watch.addEventListener("click", () => (state.view === "watch" ? closeWatch() : openWatch()));
@@ -449,6 +612,9 @@ function voiceContext() {
 }
 
 const QUICK_ANSWER = /\b(yes|yeah|yep|yup|no|nope|nah|nobody|not sure|unsure|don't know|maybe)\b/;
+// Korean: an answer word anywhere in the sentence (endings attach to the stem, so there are no word boundaries).
+const QUICK_ANSWER_KR = /네|예|응|넵|아니|아뇨|없어|없습니다|있어|있습니다|모르겠|몰라|괜찮|맞아|그래/;
+const isQuickAnswer = (t) => (isKr() ? QUICK_ANSWER_KR.test(Speech.normalize(t)) : QUICK_ANSWER.test(Speech.normalize(t)));
 
 function rawVoiceContext() {
   if (state.view === "ask") {
@@ -465,7 +631,7 @@ function rawVoiceContext() {
   switch (d.session.stage) {
     case "safety":
       // The server reads the answer (with the recognizer's other guesses too), so the rules stay in one place.
-      return { hint: "Say yes, no, or not sure.", parse: (t) => (t.trim() ? t : null), quick: (t) => QUICK_ANSWER.test(Speech.normalize(t)), run: (t, spoken, guesses) => act("safety-answer", { answer: t, alternatives: guesses || [] }) };
+      return { hint: "Say yes, no, or not sure.", parse: (t) => (t.trim() ? t : null), quick: isQuickAnswer, run: (t, spoken, guesses) => act("safety-answer", { answer: t, alternatives: guesses || [] }) };
     case "emergency":
       return {
         hint: "Say \"got it\" when you have made the call or you are safe.",
@@ -579,7 +745,7 @@ function handleSpoken(ctx, text, guesses = []) {
     voice.message = `I heard "${text}", but I didn't understand. ${ctx.hint}`;
     paintListenBar();
     voice.retries += 1;
-    if (voice.retries <= 2) speak([RETRY_PREFIX.trim(), ctx.hint], true, () => { if (voice.handsFree) setTimeout(startListening, 300); });
+    if (voice.retries <= 2) speak([retryPrefix().trim(), T(ctx.hint)], true, () => { if (voice.handsFree) setTimeout(startListening, 300); });
     return;
   }
   voice.retries = 0;
@@ -622,16 +788,16 @@ function micRow(label = "Speak your answer") {
 
 // Dictate into a text box (for example, what happened). The text stays editable.
 function dictate(el, button) {
-  if (dictation) { dictation.stop(); dictation = null; button.lastChild.textContent = "Speak"; return; }
+  if (dictation) { dictation.stop(); dictation = null; button.lastChild.textContent = T("Speak"); return; }
   stopListening();
   stopSpeaking();
   const base = el.value.trim();
-  button.lastChild.textContent = "Stop";
+  button.lastChild.textContent = T("Stop");
   dictation = Speech.listen({
     onInterim: (text) => { el.value = (base + " " + text).trim(); },
     onFinal: (text) => { el.value = (base + " " + text).trim(); },
     onError: (message) => { voice.message = message; paintListenBar(); },
-    onEnd: () => { dictation = null; if (button.isConnected) button.lastChild.textContent = "Speak"; },
+    onEnd: () => { dictation = null; if (button.isConnected) button.lastChild.textContent = T("Speak"); },
   });
 }
 
@@ -683,7 +849,7 @@ function consentScreen(d) {
       h("p", { class: "hero-sub" }, "Answer two quick questions. We guide you through photos, details, and who to call."),
       h("details", { class: "more" },
         h("summary", {}, "What happens to my data?"),
-        h("ul", { class: "plain muted" }, CONSENT_POINTS.map((point) => h("li", {}, point))),
+        h("ul", { class: "plain muted" }, consentPoints().map((point) => h("li", {}, point))),
         h("p", { class: "muted" }, "Tip: add ScenePilot to your home screen so it opens like an app, ready to listen.")),
       h("p", { class: "fine" }, "ScenePilot does not decide who is at fault, what repairs cost, or anyone's legal responsibility. AI observations can be wrong. If anyone is hurt or in danger, call 911 first."),
     ),
@@ -719,13 +885,14 @@ function profileScreen() {
   };
   const save = () => {
     const out = {};
-    for (const [key] of PROFILE_FIELDS) out[key] = inputs[key].value.trim();
+    for (const [key] of profileFields()) out[key] = inputs[key].value.trim();
+    if (isKr()) out.home_state = loadProfile().home_state || "";   // keep what an English-edition user saved
     store("profile", profileFilled(out) ? JSON.stringify(out) : null);
     if (out.claims_phone) store("insurer", out.claims_phone);
     state.view = null; render();
   };
   const clear = () => {
-    if (!confirm("Delete the details saved on this device?")) return;
+    if (!confirm(T("Delete the details saved on this device?"))) return;
     store("profile", null); store("insurer", null);
     state.view = null; render();
   };
@@ -733,20 +900,21 @@ function profileScreen() {
     h("div", { class: "card" },
       h("h2", {}, "My info"),
       h("p", { class: "muted" }, "Everything here stays on this device. It is never sent to the server. It appears in your summary so you can read it out or copy it."),
-      PROFILE_FIELDS.map(fieldEl)),
+      insurerPicker((x) => { inputs.insurer.value = x.name; inputs.claims_phone.value = x.phone; }),
+      profileFields().map(fieldEl)),
     h("button", { class: "btn primary", onclick: save }, "Save"),
     h("button", { class: "btn", onclick: () => { state.view = null; render(); } }, "Back"),
     profileFilled(p) ? h("button", { class: "btn ghost", onclick: clear }, "Delete my saved info") : null,
     h("div", { class: "card" },
       h("h2", {}, "About this app"),
       h("p", { class: "muted" }, "ScenePilot guides you through an accident one step at a time and organizes your photos and statements. It does not decide who is at fault, what repairs cost, or anyone's legal responsibility. AI observations can be wrong."),
-      h("ul", { class: "plain muted" }, CONSENT_POINTS.map((point) => h("li", {}, point))),
+      h("ul", { class: "plain muted" }, consentPoints().map((point) => h("li", {}, point))),
       hasConsent() ? h("button", { class: "btn ghost", onclick: forgetConsent }, "Show the start notice again") : null),
   ];
 }
 
 function forgetConsent() {
-  if (!confirm("Show the start notice again? This starts a new accident.")) return;
+  if (!confirm(T("Show the start notice again? This starts a new accident."))) return;
   store("consent", null); store("sid", null);
   state.view = null; state.lastPhoto = null; state.skipOpen = false;
   run("Starting…", startSession);
@@ -805,8 +973,8 @@ function safetyScreen(d) {
   const input = h("input", { type: "text", id: "free", placeholder: "Or type it (for example: nobody is hurt)", autocomplete: "off", "aria-label": "Type your answer" });
   const send = () => { const v = input.value.trim(); if (v) act("safety-answer", { answer: v }); };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
-  const optionValue = { "Yes": "yes", "No": "no", "Not sure": "unsure" };
-  const send1 = (o) => act("safety-answer", { answer: optionValue[o] || o });
+  const values = ["yes", "no", "unsure"];   // the buttons come in this order in either language
+  const send1 = (i) => act("safety-answer", { answer: values[i] });
   const [yes, no, unsure] = d.prompt.options;
   return [
     h("div", { class: "card question" },
@@ -814,9 +982,9 @@ function safetyScreen(d) {
       h("div", { class: "kicker" }, `SAFETY CHECK ${Math.min(answered + 1, total)} OF ${total}`),
       h("p", { class: "lead" }, d.prompt.text),
       h("div", { class: "stack", style: "margin-top:16px" },
-        h("button", { class: "btn answer", onclick: () => send1(yes) }, yes),
-        h("button", { class: "btn outline", onclick: () => send1(no) }, no),
-        h("button", { class: "linkbtn", onclick: () => send1(unsure) }, unsure),
+        h("button", { class: "btn answer", onclick: () => send1(0) }, yes),
+        h("button", { class: "btn outline", onclick: () => send1(1) }, no),
+        h("button", { class: "linkbtn", onclick: () => send1(2) }, unsure),
         micRow("Or just say it"))),
     h("details", { class: "card more" },
       h("summary", {}, "Type your answer instead"),
@@ -872,7 +1040,7 @@ function autoStateFromLocation() {
 }
 
 async function startLocationLookup() {
-  if (state.geo.status === "locating") return;
+  if (isKr() || state.geo.status === "locating") return;   // the Korea edition does not need the location
   state.geo = { status: "locating" };
   if (stateStepVisible()) render();
   try {
@@ -964,7 +1132,7 @@ function guideScreen(d) {
   return [
     h("div", { class: "card" },
       h("div", { class: "kicker" }, p.step_kind === "state_note"
-        ? `${stateName.toUpperCase()} - ${(p.step_title || "").toUpperCase()}`
+        ? (isKr() ? p.step_title || "" : `${stateName.toUpperCase()} - ${(p.step_title || "").toUpperCase()}`)
         : `WHAT TO DO NOW ${p.step_index + 1}/${p.steps.length}`),
       h("p", { class: "lead" }, p.text),
       p.step_kind === "list" ? h("ol", { class: "steps-list" }, p.items.map((s) => h("li", {}, s))) : null,
@@ -1012,7 +1180,7 @@ function photosScreen(d) {
 
   const skipBox = state.skipOpen ? h("div", { class: "stack" },
     h("div", { class: "muted" }, "Pick a reason for skipping. It will be recorded in the summary."),
-    SKIP_REASONS.map((r) => h("button", { class: "btn", onclick: () => { state.skipOpen = false; act("skip", { reason: r }); } }, r))) : null;
+    SKIP_REASONS.map((r) => h("button", { class: "btn", onclick: () => { state.skipOpen = false; act("skip", { reason: T(r) }); } }, r))) : null;
 
   const pr = d.photo_progress;
   const heading = pr.extra_mode
@@ -1062,7 +1230,7 @@ function infoScreen(d) {
   const inputs = {};
   const form = h("div", { class: "card" },
     h("h2", {}, "More details"),
-    h("p", { class: "muted" }, d.prompt.text + " Anything left blank is listed under 'Not confirmed'."),
+    h("p", { class: "muted" }, d.prompt.text, " ", "Anything left blank is listed under 'Not confirmed'."),
     fields.map(([key, label]) => {
       const cur = saved[key];
       const el = key === "statement"
@@ -1125,15 +1293,16 @@ function summaryScreen(d) {
 
   const copyBtn = h("button", { class: "btn primary" }, icon("copy"), "Copy summary");
   copyBtn.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(fullText); copyBtn.textContent = "Copied ✓"; }
+    try { await navigator.clipboard.writeText(fullText); copyBtn.textContent = T("Copied ✓"); }
     catch {
       const ta = h("textarea", { readonly: true }); ta.value = fullText; document.body.append(ta); ta.select();
-      try { document.execCommand("copy"); copyBtn.textContent = "Copied ✓"; } catch { copyBtn.textContent = "Could not copy"; }
+      try { document.execCommand("copy"); copyBtn.textContent = T("Copied ✓"); } catch { copyBtn.textContent = T("Could not copy"); }
       ta.remove();
     }
   });
 
   return [
+    leaveCard(s),
     h("div", { class: "card" },
       h("h2", {}, "Claim summary"),
       h("p", { class: "muted" }, "Every item shows its source. 'AI observation' items are for reference only and are not verified."),
@@ -1152,10 +1321,54 @@ function summaryScreen(d) {
       h("p", { class: "muted" }, "Entered by you and kept on this device. Not part of the server summary above, but included when you copy it."),
       profileRows(prof).map(([label, value]) => h("div", { class: "sum-item" },
         h("span", { class: "lab" }, label), value, h("span", { class: "badge user_statement" }, SOURCE_LABEL.user_statement)))) : null,
-    h("div", { class: "card stack" }, copyBtn, phone, call),
+    h("div", { class: "card stack" }, copyBtn,
+      insurerPicker((x) => { phone.value = x.phone; syncCall(); call.replaceChildren(icon("phone"), x.name + "에 전화"); }),
+      phone, call),
+    nextStepsCard(s),
     h("button", { class: "btn", onclick: () => act("goto", { target: "hub" }) }, "Add more (photos or details)"),
     h("button", { class: "btn", onclick: restart }, "Start a new accident"),
+    cleanupCard(s),
   ];
+}
+
+// Korea edition: what to check before leaving (only a reminder), what comes next, and how to clear the record.
+// The server builds all of it from fixed sentences, so the same lines are read aloud and shown.
+function leaveCard(s) {
+  if (!s.leave_check || !s.leave_check.length) return null;
+  const [lead, ...rest] = s.leave_check;
+  return h("div", { class: "card" },
+    h("h2", {}, icon("alert"), lead),
+    h("ul", { class: "plain" }, rest.map((line) => h("li", {}, line))),
+    h("p", { class: "muted" }, "알림일 뿐이에요. 이 앱은 떠나는 것을 막지 않아요."));
+}
+
+function nextStepsCard(s) {
+  if (!s.next_steps || !s.next_steps.length) return null;
+  return h("div", { class: "card" },
+    h("h2", {}, "이후 할 일"),
+    h("ol", { class: "plain" }, s.next_steps.map((line) => h("li", {}, line))));
+}
+
+function cleanupCard(s) {
+  if (!s.cleanup) return null;
+  return h("div", { class: "card" },
+    h("h2", {}, "기록 정리"),
+    h("p", { class: "muted" }, s.cleanup),
+    h("button", { class: "btn danger", onclick: deleteRecord }, "이 사고 기록 지우기"));
+}
+
+async function deleteRecord() {
+  if (!confirm("이 사고의 사진 분석 결과와 입력한 내용을 서버에서 지웁니다. 되돌릴 수 없어요. 지울까요?")) return;
+  state.busy = "지우는 중…"; render();
+  try {
+    await api(`/api/sessions/${sid()}`, { method: "DELETE" });
+  } catch (e) {
+    state.busy = null; state.error = e.message; render(); return;
+  }
+  state.busy = null;
+  state.lastPhoto = null; state.skipOpen = false;
+  store("sid", null);
+  run("Starting…", startSession);
 }
 
 // ---------- Render ----------

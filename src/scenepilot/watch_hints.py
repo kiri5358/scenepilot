@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from . import kr
+
 COOLDOWN_SECONDS = 30  # the same reminder is not repeated within this time
 
 
@@ -52,18 +54,40 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9' ]+", " ", text.lower().replace("’", "'"))).strip()
 
 
-def match(text: str) -> list[WatchRule]:
-    """Every rule with a phrase in the text, as whole words. Order follows RULES."""
+# Korean rules. Korean words carry endings and particles, so the phrases are stems compared as plain substrings after
+# all spaces are removed (same as static/watch.js).
+RULES_KR: tuple[WatchRule, ...] = tuple(WatchRule(i, phrases, hint) for i, phrases, hint in kr.WATCH_RULES)
+
+
+def normalize_ko(text: str) -> str:
+    """Lower case, only Korean letters, letters and digits, with every space removed."""
+    return re.sub(r"[^0-9a-z가-힣]+", "", text.lower())
+
+
+def rules_for(country: str = "US") -> tuple[WatchRule, ...]:
+    return RULES_KR if kr.is_kr(country) else RULES
+
+
+def match(text: str, country: str = "US") -> list[WatchRule]:
+    """Every rule with a phrase in the text. English phrases match whole words; Korean ones match as stems. Order follows the rules."""
+    if kr.is_kr(country):
+        compact = normalize_ko(text)
+        return [r for r in RULES_KR if any(normalize_ko(p) in compact for p in r.phrases)]
     padded = f" {normalize(text)} "
     return [r for r in RULES if any(f" {normalize(p)} " in padded for p in r.phrases)]
 
 
-def hints() -> list[str]:
-    return [r.hint for r in RULES]
+def hints(country: str = "US") -> list[str]:
+    return [r.hint for r in rules_for(country)]
 
 
-def public_rules() -> dict:
+def public_rules(country: str = "US") -> dict:
+    if kr.is_kr(country):
+        return {
+            "cooldown_seconds": kr.WATCH_COOLDOWN_SECONDS, "compact": True,
+            "rules": [{"id": r.id, "phrases": [normalize_ko(p) for p in r.phrases], "hint": r.hint} for r in RULES_KR],
+        }
     return {
-        "cooldown_seconds": COOLDOWN_SECONDS,
+        "cooldown_seconds": COOLDOWN_SECONDS, "compact": False,
         "rules": [{"id": r.id, "phrases": [normalize(p) for p in r.phrases], "hint": r.hint} for r in RULES],
     }

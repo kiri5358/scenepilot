@@ -16,13 +16,15 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
-from . import checklist, playbooks, states, watch_hints
+from . import checklist, kr, playbooks, states, watch_hints
 from . import session as sm
-from .emergency import SAFETY_QUESTIONS, TITLES, Answer, evaluate
+from .emergency import TITLES, Answer, evaluate, safety_questions
 
 AUDIO_DIR = Path(__file__).parent / "static" / "audio"
 MANIFEST = "manifest.json"
 DEFAULT_VOICE = "Magpie-Multilingual.EN-US.Aria.Calm"  # a calm voice suits someone who has just had an accident
+KR_VOICE = "Magpie-Multilingual.KO-KR.Aria"           # the Korean voices have no "Calm" variant
+KR_AUDIO_DIR = AUDIO_DIR / "ko"                       # the Korea edition has its own clips and manifest
 RETRY_PREFIX = "Sorry, I didn't catch that."  # said before a safety question that must be asked again
 
 
@@ -35,49 +37,59 @@ def clip_name(text: str, voice: str) -> str:
     return hashlib.sha1(f"{voice}|{normalize(text)}".encode("utf-8")).hexdigest()[:16] + ".mp3"
 
 
-def _prompt_texts(stage: sm.Stage, level: str = "none") -> list[str]:
-    s = sm.new_session()
+def _prompt_texts(stage: sm.Stage, level: str = "none", country: str = "US") -> list[str]:
+    s = sm.new_session(country)
     s.stage = stage
     s.emergency.level = level
     p = sm.next_prompt(s)
     return [p.text, *p.actions, *([p.warning] if p.warning else [])]
 
 
-def fixed_prompts() -> list[str]:
+def fixed_prompts(country: str = "US") -> list[str]:
     """Every fixed sentence the app can read aloud, in a stable order, without duplicates."""
-    found: list[str] = [RETRY_PREFIX]
+    ko = kr.is_kr(country)
+    found: list[str] = [kr.RETRY_PREFIX if ko else RETRY_PREFIX]
 
     # screens whose wording lives in the prompt builder
-    found += _prompt_texts(sm.Stage.CONSENT)
-    found += _prompt_texts(sm.Stage.HUB)
-    found += _prompt_texts(sm.Stage.INFO)
-    found += _prompt_texts(sm.Stage.SUMMARY)
-    found += _prompt_texts(sm.Stage.PHOTOS)                # the photo instruction (first checklist item)
-    found += _prompt_texts(sm.Stage.PHOTOS, "emergency")   # the same screen with the "only where you are safe" warning
+    found += _prompt_texts(sm.Stage.CONSENT, country=country)
+    found += _prompt_texts(sm.Stage.HUB, country=country)
+    found += _prompt_texts(sm.Stage.INFO, country=country)
+    found += _prompt_texts(sm.Stage.SUMMARY, country=country)
+    found += _prompt_texts(sm.Stage.PHOTOS, country=country)                # the photo instruction (first checklist item)
+    found += _prompt_texts(sm.Stage.PHOTOS, "emergency", country)           # the same screen with the "only where you are safe" warning
 
     # safety questions
-    found += [q.text for q in SAFETY_QUESTIONS]
+    found += [q.text for q in safety_questions(country)]
 
     # emergency notices: every wording the rules can produce
     for danger, movable in itertools.product((Answer.NO, Answer.YES), (Answer.YES, Answer.NO)):
-        decision = evaluate({"danger": danger, "movable": movable})
+        decision = evaluate({"danger": danger, "movable": movable}, country)
         found += ([decision.title] if decision.title else []) + decision.actions
-    found += [t for t in TITLES.values() if t]
+    found += [t for t in (kr.TITLES if ko else TITLES).values() if t]
 
     # guidance: the list screen (both ways the first step can read), state question, general reminders, state notes
     for movable in (Answer.YES, Answer.NO):
-        for step in playbooks.guide_steps("none", {"movable": movable}, None):
+        for step in playbooks.guide_steps("none", {"movable": movable}, None, country):
             found += [step.text, *step.items]
-    found += [playbooks.GENERAL_OTHER, playbooks.GENERAL_UNSURE]
-    for state in states.supported():
-        for note in states.ui_notes(state["code"]):
-            found += [note.title, note.text]  # the title is read when the note appears; the text only on Repeat
+    if ko:
+        for note in states.ui_notes(states.KR):
+            found += [note.title, note.text]
+    else:
+        found += [playbooks.GENERAL_OTHER, playbooks.GENERAL_UNSURE]
+        for state in states.supported():
+            for note in states.ui_notes(state["code"]):
+                found += [note.title, note.text]  # the title is read when the note appears; the text only on Repeat
 
     # photo instructions and the fixed retake messages
-    found += [item.instruction for item in checklist.ITEMS]
-    found += list(checklist._DEFAULT_MESSAGES.values())
+    found += [checklist.item_instruction(item, country) for item in checklist.ITEMS]
+    found += list(checklist.default_messages(country).values())
 
-    found += watch_hints.hints()  # conversation watch reminders
+    found += watch_hints.hints(country)  # conversation watch reminders
+    if ko:
+        found += list(kr.COACH_HINTS.values())  # the extra reminders live coaching can choose
+        # the check before leaving, read after the summary: every sentence it can be made of
+        found += [kr.LEAVE_LEAD, kr.LEAVE_NOTHING, *kr.LEAVE_INFO.values(), *kr.LEAVE_ALWAYS]
+        found += [kr.LEAVE_PHOTO.format(title=checklist.item_title(item, country)) for item in checklist.ITEMS if item.core]
 
     seen: set[str] = set()
     ordered: list[str] = []

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from . import states
+from . import kr, states
 from .emergency import Answer
 
 
@@ -36,15 +36,27 @@ GENERAL_UNSURE = (
 )
 
 
-def guide_steps(level: str, answers: dict[str, Answer], accident_state: str | None = None) -> list[GuideStep]:
+def guide_steps(
+    level: str, answers: dict[str, Answer], accident_state: str | None = None, country: str = "US"
+) -> list[GuideStep]:
     """The ordered steps for this situation.
 
     Emergency has no guidance steps: the 911 call is the guidance, and the state is taken from the phone's location
     without asking (see session.set_accident_state, via="location_auto"). Everything else starts with one screen that
     lists all the steps, so nobody has to tap Next once per sentence.
+
+    The Korea edition (country "KR") has the same shape without the state question: one list, then the notes for Korea.
     """
     if level == "emergency":
         return []
+    if kr.is_kr(country):
+        first = kr.FIRST_STEP_STUCK if answers.get("movable") == Answer.NO else kr.FIRST_STEP_MOVABLE
+        steps = [GuideStep(kind="list", text=kr.LIST_HEADING, items=[first, *kr.LIST_ITEMS])]
+        steps.extend(
+            GuideStep(kind="state_note", text=n.text, note_title=n.title, sources=n.sources)
+            for n in states.ui_notes(states.KR)
+        )
+        return steps
     if answers.get("movable") == Answer.NO:
         first = "Turn on your hazard lights and stay out of traffic."
     else:

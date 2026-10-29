@@ -13,7 +13,7 @@ from collections.abc import Callable
 from fastapi import HTTPException, Request
 
 WINDOW_SECONDS = 600
-DEFAULT_LIMITS = {"photo": 25, "ask": 20, "session": 30}  # calls per window per address
+DEFAULT_LIMITS = {"photo": 25, "ask": 20, "session": 30, "coach": 150}  # calls per window per address
 MESSAGE = "Too many requests from your network. Please wait a few minutes and try again."
 
 

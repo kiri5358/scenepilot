@@ -36,6 +36,11 @@ body {
 }
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3, .lead, .brand { font-family: var(--display); }
+/* Korea edition: a Korean typeface for the text, and lines break between words, not inside them. */
+html[lang="ko"] { --font: "Noto Sans KR", "Atkinson Hyperlegible", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; --display: "Noto Sans KR", "Barlow Semi Condensed", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+html[lang="ko"] body { word-break: keep-all; overflow-wrap: break-word; }
+html[lang="ko"] .hero { font-weight: 700; font-size: 30px; line-height: 1.25; letter-spacing: -.01em; }
+html[lang="ko"] h2, html[lang="ko"] .lead { letter-spacing: -.01em; }
 button, input, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 .hidden { display: none; }
@@ -70,6 +75,10 @@ button, input, textarea { font: inherit; color: inherit; }
 .menu-item[aria-pressed]::after { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--ink-2); }
 .menu-item[aria-pressed="true"]::after { content: "ON"; color: var(--green); }
 .menu-item[aria-pressed="false"]::after { content: "OFF"; }
+html[lang="ko"] .menu-item[aria-pressed="true"]::after { content: "켜짐"; }
+html[lang="ko"] .menu-item[aria-pressed="false"]::after { content: "꺼짐"; }
+.menu-item .lang-ico { flex: none; width: 24px; padding: 1px 0; border: 1.5px solid currentColor; border-radius: 5px; font: 600 11px var(--display); text-align: center; }
+.top-actions .call911 { padding-inline: 10px; }
 /* The 911 call button is always visible, so nobody has to answer a question first. */
 .call911 {
   height: 40px; padding: 0 14px; border-radius: 20px; background: var(--red); color: #fff; font-weight: 700; font-size: 16px;

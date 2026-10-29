@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 
 from openai import AsyncOpenAI
 
-from . import playbooks, states
-from .checklist import ITEMS
+from . import kr, playbooks, states
+from .checklist import ITEMS, item_instruction, item_title
 from .config import Settings, get_settings
 from .emergency import EMERGENCY_NUMBERS, CallButton, danger_signals
 
@@ -91,6 +91,16 @@ TOOLS = [
 ]
 
 
+def tools_for(country: str) -> list[dict]:
+    """The same tools; in the Korea edition the state lookup only knows "KR"."""
+    if not kr.is_kr(country):
+        return TOOLS
+    out = json.loads(json.dumps(TOOLS))
+    out[0]["function"]["description"] = "Reviewed plain-language notes about the accident rules in Korea (stopping, reporting, leaving the scene, insurance)."
+    out[0]["function"]["parameters"]["properties"]["state"]["enum"] = ["KR"]
+    return out
+
+
 @dataclass
 class AssistantAnswer:
     answer: str
@@ -103,8 +113,12 @@ class AssistantAnswer:
 
 # ---------- Tools (read-only, fixed data) ----------
 
-def _tool_state_notes(args: dict, used_sources: list[dict]) -> dict:
+def _tool_state_notes(args: dict, used_sources: list[dict], country: str = "US") -> dict:
     code = str(args.get("state", "")).upper()
+    if kr.is_kr(country):
+        code = states.KR  # one jurisdiction: whatever the model asks for, the notes are the Korean ones
+    elif code == states.KR:
+        code = ""
     notes = states.ui_notes(code)
     if not notes:
         return {"error": f"No reviewed notes for state {code!r}. Only FL and NY are covered."}
@@ -116,7 +130,7 @@ def _tool_state_notes(args: dict, used_sources: list[dict]) -> dict:
     return {
         "state": states.name_of(code),
         "notes": [{"title": n.title, "text": n.text, "sources": [s.title for s in n.sources]} for n in notes],
-        "caveat": states.load().disclaimer,
+        "caveat": states.disclaimer_for(code),
     }
 
 
@@ -124,19 +138,21 @@ def _tool_session_facts(s) -> dict:
     return {
         "situation_level": s.emergency.level,
         "accident_state": states.name_of(s.accident_state) if s.accident_state else "not chosen yet",
-        "photos": {i.title: slot.status.value for i, slot in zip(ITEMS, s.slots)},
+        "photos": {item_title(i, s.country): slot.status.value for i, slot in zip(ITEMS, s.slots)},
     }
 
 
 def run_tool(name: str, args: dict, s, used_sources: list[dict]) -> dict:
     if name == "lookup_state_notes":
-        return _tool_state_notes(args, used_sources)
+        return _tool_state_notes(args, used_sources, s.country)
     if name == "session_facts":
         return _tool_session_facts(s)
     if name == "what_to_do_now":
-        return {"steps": [st.text for st in playbooks.guide_steps("none", {}, None) if st.kind == "text"]}
+        steps = playbooks.guide_steps("none", {}, None, s.country)
+        return {"steps": [item for st in steps if st.kind == "list" for item in st.items] if kr.is_kr(s.country)
+                else [st.text for st in steps if st.kind == "text"]}
     if name == "photo_checklist":
-        return {"photos": [{"title": i.title, "how": i.instruction, "essential": i.core} for i in ITEMS]}
+        return {"photos": [{"title": item_title(i, s.country), "how": item_instruction(i, s.country), "essential": i.core} for i in ITEMS]}
     if name == "emergency_numbers":
         return EMERGENCY_NUMBERS.get(s.country, {})
     return {"error": f"Unknown tool {name!r}"}
@@ -145,7 +161,7 @@ def run_tool(name: str, args: dict, s, used_sources: list[dict]) -> dict:
 # ---------- Checking the model's text ----------
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
-_AMOUNT = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?")
+_AMOUNT = re.compile(r"\$\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*\s?(?:만\s?)?원")
 
 
 def _clean(text: str) -> str:
@@ -163,7 +179,10 @@ def _clean(text: str) -> str:
 # fault, legal action, a diagnosis, death, money, or what to say or sign.
 _DECLINES = re.compile(
     r"\bI(?:'m| am)? (?:can'?t|cannot|not able to|unable to|won'?t|will not|do not|don'?t)\b"
-    r"|\b(?:police|insurance|insurer|adjuster|professional|doctor|dispatcher|court)\b[^.!?\n]*\b(?:decide|determine|assess|evaluate)\b",
+    r"|\b(?:police|insurance|insurer|adjuster|professional|doctor|dispatcher|court)\b[^.!?\n]*\b(?:decide|determine|assess|evaluate)\b"
+    # Korean: "I cannot say / judge", or the police, insurer or a professional decides
+    r"|(?:말씀드릴|답변드릴|알려드릴|판단할|단정할|정할|알) 수 없|판단하지 않"
+    r"|(?:경찰|보험사|보험 회사|전문가|법원|의사)(?:이|가|에서|은|는)? ?(?:결정|판단|가려)",
     re.IGNORECASE,
 )
 _JUDGMENTS = [re.compile(p, re.IGNORECASE) for p in (
@@ -187,14 +206,33 @@ _JUDGMENTS = [re.compile(p, re.IGNORECASE) for p in (
     r"\bno (?:legal )?(?:need|requirement|obligation) to\b", r"\b(?:don'?t|do not) (?:have|need) to (?:call|report)\b",
     # what to say or sign
     r"\b(?:don'?t|do not|never) (?:admit|sign|say sorry)\b", r"\bapolog(?:ize|ise|y)\b", r"\bsign (?:anything|this|the)\b",
+    # Korean (stems, no word boundaries)
+    r"과실", r"잘못", r"책임", r"탓", r"위반", r"음주", r"과속", r"불법", r"소송", r"고소", r"변호사", r"법원", r"합의",
+    r"골절", r"뇌진탕", r"진단", r"사망", r"내출혈", r"수리비", r"견적", r"보험금", r"보상금", r"배상", r"전손",
+    r"필요(?:가)? 없", r"않아도 (?:돼|됩니다|되)", r"서명하지", r"사과하지", r"인정하지",
 )]
 _SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+_HANGUL_TEXT = re.compile(r"[가-힣]")
+# Han characters, kana, or an English word of three letters or more (domain names such as law.go.kr are fine)
+_DOMAIN = re.compile(r"[A-Za-z0-9.\-]+\.(?:go|co|or)\.kr\S*")
+_STRAY_SCRIPT = re.compile(r"[぀-ヿ一-鿿]|[A-Za-z]{3,}")
+_ARTICLE = re.compile(r"제\s?(\d+)\s?조")
 
 
 def check_answer(text: str, notes_text: str) -> bool:
     """Is the model's text allowed to be shown? See the comment above for how it is judged."""
     if not text.strip() or len(text) > MAX_ANSWER_CHARS:
         return False
+    if _HANGUL_TEXT.search(text):
+        # A Korean answer must be Korean: stray Chinese, Japanese or English words show the model drifted.
+        if _STRAY_SCRIPT.search(_DOMAIN.sub("", text)):
+            return False
+        # A law article may only be named if our own notes name it; the model must not cite from memory.
+        known = set(_ARTICLE.findall(notes_text))
+        if any(n not in known for n in _ARTICLE.findall(text)):
+            return False
     allowed = set(_AMOUNT.findall(notes_text))  # amounts that come word for word from our own notes may be repeated
     for sentence in _SENTENCE.split(text):
         if any(m.group(0) not in allowed for m in _AMOUNT.finditer(sentence)):
@@ -211,20 +249,29 @@ def check_answer(text: str, notes_text: str) -> bool:
 async def ask(s, question: str, *, settings: Settings | None = None, client: AsyncOpenAI | None = None) -> AssistantAnswer:
     question = " ".join(question.split())[:MAX_QUESTION_CHARS]
 
+    ko = kr.is_kr(s.country)
+    safety_answer = kr.SAFETY_ANSWER if ko else SAFETY_ANSWER
+    fallback_answer = kr.FALLBACK_ANSWER if ko else FALLBACK_ANSWER
+    unavailable_answer = kr.UNAVAILABLE_ANSWER if ko else UNAVAILABLE_ANSWER
+    note = kr.NOTE if ko else NOTE
+
     # 1. Rules first: danger words never reach the model.
     if danger_signals(question):
-        return AssistantAnswer(
-            SAFETY_ANSWER, "safety",
-            call_buttons=[CallButton(label=f"Call {EMERGENCY_NUMBERS[s.country]['police']}", number=EMERGENCY_NUMBERS[s.country]["police"])],
-        )
+        if ko:
+            buttons = [CallButton(label=kr.CALL_AMBULANCE, number=kr.NUMBERS["ambulance"]),
+                       CallButton(label=kr.CALL_POLICE, number=kr.NUMBERS["police"])]
+        else:
+            buttons = [CallButton(label=f"Call {EMERGENCY_NUMBERS[s.country]['police']}", number=EMERGENCY_NUMBERS[s.country]["police"])]
+        return AssistantAnswer(safety_answer, "safety", call_buttons=buttons, note=note)
 
     settings = settings or get_settings()
     if client is None:
         if not settings.api_key:
-            return AssistantAnswer(UNAVAILABLE_ANSWER, "unavailable")
+            return AssistantAnswer(unavailable_answer, "unavailable", note=note)
         client = AsyncOpenAI(base_url=settings.base_url, api_key=settings.api_key, timeout=settings.request_timeout, max_retries=0)
 
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}]
+    messages: list[dict] = [{"role": "system", "content": kr.SYSTEM_PROMPT if ko else SYSTEM_PROMPT}, {"role": "user", "content": question}]
+    tools = tools_for(s.country)
     used_sources: list[dict] = []
     tools_used: list[str] = []
     notes_text = ""
@@ -232,19 +279,19 @@ async def ask(s, question: str, *, settings: Settings | None = None, client: Asy
     try:
         for _ in range(MAX_TOOL_ROUNDS + 1 + MAX_REWRITES):
             resp = await client.chat.completions.create(
-                model=settings.assistant_model, messages=messages, tools=TOOLS,
+                model=settings.assistant_model, messages=messages, tools=tools,
                 max_tokens=settings.assistant_max_tokens, temperature=0.2,
             )
             message = resp.choices[0].message
             if not message.tool_calls:
                 text = _clean(message.content or "")
                 if check_answer(text, notes_text):
-                    return AssistantAnswer(text, "answer", sources=used_sources, tools_used=tools_used)
+                    return AssistantAnswer(text, "answer", sources=used_sources, tools_used=tools_used, note=note)
                 if rewrites >= MAX_REWRITES:
-                    return AssistantAnswer(FALLBACK_ANSWER, "fallback", tools_used=tools_used)
+                    return AssistantAnswer(fallback_answer, "fallback", tools_used=tools_used, note=note)
                 rewrites += 1
                 messages.append({"role": "assistant", "content": message.content or ""})
-                messages.append({"role": "user", "content": REWRITE_REQUEST})
+                messages.append({"role": "user", "content": kr.REWRITE_REQUEST if ko else REWRITE_REQUEST})
                 continue
             messages.append({
                 "role": "assistant", "content": message.content or "",
@@ -258,8 +305,8 @@ async def ask(s, question: str, *, settings: Settings | None = None, client: Asy
                     args = {}
                 result = run_tool(tc.function.name, args, s, used_sources)
                 tools_used.append(tc.function.name)
-                notes_text += " " + json.dumps(result)
+                notes_text += " " + json.dumps(result, ensure_ascii=False)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
     except Exception:  # noqa: BLE001 - never show a raw error to someone at an accident scene
-        return AssistantAnswer(UNAVAILABLE_ANSWER, "unavailable", tools_used=tools_used)
-    return AssistantAnswer(FALLBACK_ANSWER, "fallback", tools_used=tools_used)  # too many tool rounds
+        return AssistantAnswer(unavailable_answer, "unavailable", tools_used=tools_used, note=note)
+    return AssistantAnswer(fallback_answer, "fallback", tools_used=tools_used, note=note)  # too many tool rounds
