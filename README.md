@@ -16,11 +16,13 @@ It does not decide who is at fault, what repairs cost, or anyone's legal respons
   shows 119 (ambulance, fire) and 112 (police). The screens' own English strings are translated by `static/ko.js`.
 - **Answers in Korean.** Spoken or typed answers are understood by rule code (`emergency.py`): a danger sign counts unless it
   is denied next to it, and "not sure" counts as danger, as in the English edition. The browser recognizer listens in `ko-KR`.
-- **Notes from Korean law.** `data/state_notes.json` has a `KR` entry with four plain-language notes (stop and report, warning
-  triangle and highway, leaving the scene, insurance and foreign drivers) with their sources on law.go.kr. They are a draft
-  (`reviewed: false`): the team has not checked them line by line against the statutes, and the emergency-towing number
-  in the highway note comes from press reports. There is no state question in Korea.
-- **Spoken guidance.** The 46 fixed Korean sentences are synthesized once with NVIDIA Magpie TTS Multilingual (`KO-KR.Aria`,
+- **Notes from Korean law.** `data/state_notes.json` has a `KR` entry with six plain-language notes (stop and report, warning
+  triangle and highway, leaving the scene, insurance, foreign drivers, rental cars) with their sources on law.go.kr (the rental
+  note cites the standard car-rental terms as quoted by the Korea Consumer Agency). The source labels say "열람 2026-10-29"
+  (the date we read them), not that the team verified them. They are a draft (`reviewed: false`): the team has not checked them
+  line by line against the statutes, and the emergency-towing number in the highway note comes from press reports. There is no
+  state question in Korea.
+- **Spoken guidance.** The 66 fixed Korean sentences are synthesized once with NVIDIA Magpie TTS Multilingual (`KO-KR.Aria`,
   `tools/synthesize_prompts.py --country KR`) into `static/audio/ko/`.
 - **Conversation watch.** Seven Korean phrase rules (fault, police, cash deal, leaving, signing, hostility, pain) match
   stems with spaces ignored, in the browser, as in the English edition. Nothing is stored by ScenePilot.
@@ -36,6 +38,7 @@ It does not decide who is at fault, what repairs cost, or anyone's legal respons
   same forbidden-expression guard as every model text (fault, legal, money, medical, admissions), a length limit, Korean only, no
   digits except 112/119, no markup, and signing/agreeing/settling/paying may only appear as "do not". A sentence that fails is
   dropped and our fixed, pre-recorded reminders are used instead; an urgent fixed reminder (threat, drinking) still plays first.
+  When someone admits fault, only the calm fixed reminder is given and the free sentence is skipped.
   Heard details are stored as *unconfirmed* AI observations (the summary lists them as unconfirmed until the user confirms);
   missing details of the other driver are reminded by code after 45 seconds. The text is used for that request only and is not
   stored or logged. In our own small test (10 sentences, including one that tried to give the model instructions) one call took
@@ -43,7 +46,7 @@ It does not decide who is at fault, what repairs cost, or anyone's legal respons
   so Super is the default (`SCENEPILOT_COACH_MODEL` changes it). Not measured on a phone: the whole delay also includes speech recognition.
   The legal side of processing a conversation on a server has **not** been reviewed.
 - Closing the scene (Korea edition): photos are taken in the order my damage, the other car and plate, the scene. The first list now includes saving the dashcam video. On the summary screen, code builds a **check before leaving** from what the session still lacks (photos, the other driver's contact, insurer and plate; AI suggestions that are not confirmed do not count) and reads it aloud; it only warns and never blocks. The screen also shows **what to do next** and an advice to clear the other driver's details, with a button that deletes the accident record from the server (`DELETE /api/sessions/{id}`). Every sentence is fixed, passes the forbidden-output guard and has a pre-recorded clip.
-- Foreign drivers and rental cars (Korea edition): two short notes say that the duties of Road Traffic Act art. 54 do not depend on nationality and that the standard car-rental terms (art. 17, as quoted by the Korea Consumer Agency) tell the renter to inform the rental company. The app does **not** judge driving qualification (international permit), compensation or fault. Model answers in Korean are also checked by code: stray foreign-script words, or a law article that our notes do not name, make the answer fall back to the safe text.
+- Foreign drivers and rental cars (Korea edition): two short notes say that the duties of Road Traffic Act art. 54 do not depend on nationality and that the standard car-rental terms (art. 17, as quoted by the Korea Consumer Agency) tell the renter to inform the rental company. The app does **not** judge driving qualification (international permit), compensation or fault. Model answers in Korean are also checked by code: stray foreign-script words, or a law article that our notes do not name, make the answer fall back to the safe text. Sentences that point to a website are dropped and the "ask a professional" sentence is kept once. A question about settling on the spot or paying cash gets a fixed answer written by us (it never reaches the model, because the model's wording about settlements always trips the judgment check): no need to decide on the spot, the app does not judge it, exchange details and photos, then tell the insurer.
 - Insurer claims numbers: on the summary and My info screens the Korea edition offers a short list of 8 non-life insurers (main numbers from the Korea Non-life Insurance Association's car-insurance portal or the insurer's own page, shown with source link and check date 2026-10-29). Picking one only fills the phone box; what the user types wins, and nothing from policy terms is used.
 - Not in the Korea edition yet: earphone-only coaching (the browser cannot choose the microphone), a Korean law review.
 
@@ -61,7 +64,7 @@ It does not decide who is at fault, what repairs cost, or anyone's legal respons
 The helper is a tool-using agent, but **rules wrap the model on both sides** (`src/scenepilot/assistant.py`):
 
 1. **Before the model:** a question that mentions injury, fire, smoke or fuel never reaches the model. The answer is the fixed 911 text with a call button.
-2. **The model's only source of law is our reviewed state notes** (Florida and New York, with source links). For any other state, or anything the notes do not cover, it must say it does not know and point to the police or the state's official site.
+2. **The model's only source of law is our state notes** (Florida and New York in the US edition, the Korean notes in the Korea edition, with source links). For any other state, or anything the notes do not cover, it must say it does not know and point to the police or the state's official site.
 3. **After the model:** its text is checked sentence by sentence. A sentence that declines, or hands the decision to the police, an insurer or a professional, may mention the topic. Any other sentence may not judge fault, give legal or medical advice, give a cost, say something is "not required", or tell the user what to say or sign. A rejected answer gets one rewrite with the rule explained, then a fixed fallback. Dollar amounts are only allowed when they come word for word from the notes.
 4. Limits: 500 characters per question, 30 questions per accident, at most 3 tool rounds.
 
@@ -228,6 +231,9 @@ src/scenepilot/
   vision.py       Token Factory vision call, structured output
   assistant.py    free-question helper: tools, rules before and after the model
   prompt_audio.py the fixed spoken sentences and how their audio files are made and found
+  kr.py           Korea edition wording, insurer claims numbers, fixed answers
+  coach.py        Korea edition live coaching: model reading, vetting, fixed reminders
+  watch_hints.py  conversation-watch phrase rules (both editions)
   app.py          FastAPI routes
   static/         mobile web UI (HTML, CSS, JS; geo.js = location, speech.js = voice)
 tools/            synthesize_prompts.py (NVIDIA Magpie TTS for the spoken guidance)
@@ -240,7 +246,8 @@ docs/             dialogue script and project notes
 
 - Photos go through our server to Nebius Token Factory for analysis. In the demo, use example photos, not real accident information.
 - A question typed or spoken into **Ask a question** goes through our server to a Nemotron model on Nebius Token Factory. Along with it the model can read the reviewed state notes and a few non-personal facts about the session (situation level, accident state, photo statuses). It is not given statements, plates or contact details. The consent screen says so, and the consent version was raised so everyone sees it again.
-- Sessions live only in server memory (up to 500) and disappear when the server restarts. There is no retention policy yet.
+- Sessions live only in server memory (up to 500) and disappear when the server restarts. There is no retention policy yet. In the Korea edition the summary screen has a button that deletes the accident record from the server at once.
+- Korea edition, AI coaching (off by default): when switched on, the transcript text of the talk is sent to our server and on to a Nemotron model on Nebius Token Factory, one request at a time; it is not stored or logged by ScenePilot. The legal side of this has not been reviewed.
 - The app asks for no account. On the phone it stores only the session id, a voice on/off choice, an optional insurer phone number, and the optional "My info" card. The "My info" card is never sent to the server (it is added to the summary on your screen and when you copy it).
 
 ## License
