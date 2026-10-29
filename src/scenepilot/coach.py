@@ -157,7 +157,10 @@ def decide(s: sm.Session, reading: ModelReading, elapsed_s: int) -> CoachResult:
         urgent = [(i, h) for i, h in ordered if i in ("hostile", "drunk", "fault")][:1]
         # The free sentence is skipped when it only repeats the same emergency number the fixed reminder already gave.
         numbers = lambda t: set(re.findall(r"11[29]", t))  # noqa: E731
-        if urgent and numbers(reading.advice) and numbers(reading.advice) <= numbers(urgent[0][1]):
+        # Someone admitting fault gets only the calm fixed reminder: a free sentence there tends to overreact.
+        if urgent and urgent[0][0] == "fault":
+            result.hints = [{"id": "fault", "hint": urgent[0][1]}]
+        elif urgent and numbers(reading.advice) and numbers(reading.advice) <= numbers(urgent[0][1]):
             result.hints = [{"id": urgent[0][0], "hint": urgent[0][1]}]
         else:
             result.hints = [{"id": i, "hint": h} for i, h in urgent] + [{"id": "ai", "hint": reading.advice, "free": True}]

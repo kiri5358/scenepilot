@@ -221,6 +221,25 @@ _STRAY_SCRIPT = re.compile(r"[぀-ヿ一-鿿]|[A-Za-z]{3,}")
 _ARTICLE = re.compile(r"제\s?(\d+)\s?조")
 
 
+_REFERRAL = re.compile(r"전문가|경찰|보험사")
+_ASKS_OTHERS = re.compile(r"상담|문의")
+
+
+def tidy_korean(text: str) -> str:
+    """Drop sentences that point to a website, and keep only the first "ask a professional" sentence."""
+    kept: list[str] = []
+    referred = False
+    for sentence in _SENTENCE.split(text):
+        if not sentence.strip() or _DOMAIN.search(sentence) or re.search(r"사이트|홈페이지", sentence):
+            continue
+        if _REFERRAL.search(sentence) and _ASKS_OTHERS.search(sentence):
+            if referred:
+                continue
+            referred = True
+        kept.append(sentence.strip())
+    return " ".join(kept) if kept else text
+
+
 def check_answer(text: str, notes_text: str) -> bool:
     """Is the model's text allowed to be shown? See the comment above for how it is judged."""
     if not text.strip() or len(text) > MAX_ANSWER_CHARS:
@@ -264,6 +283,9 @@ async def ask(s, question: str, *, settings: Settings | None = None, client: Asy
             buttons = [CallButton(label=f"Call {EMERGENCY_NUMBERS[s.country]['police']}", number=EMERGENCY_NUMBERS[s.country]["police"])]
         return AssistantAnswer(safety_answer, "safety", call_buttons=buttons, note=note)
 
+    if ko and kr.DEAL_QUESTION.search(question):
+        return AssistantAnswer(kr.DEAL_ANSWER, "answer", note=note)
+
     settings = settings or get_settings()
     if client is None:
         if not settings.api_key:
@@ -285,6 +307,8 @@ async def ask(s, question: str, *, settings: Settings | None = None, client: Asy
             message = resp.choices[0].message
             if not message.tool_calls:
                 text = _clean(message.content or "")
+                if ko:
+                    text = tidy_korean(text)
                 if check_answer(text, notes_text):
                     return AssistantAnswer(text, "answer", sources=used_sources, tools_used=tools_used, note=note)
                 if rewrites >= MAX_REWRITES:

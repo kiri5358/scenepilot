@@ -6,6 +6,8 @@ Rule code still decides everything; the wording is a draft that the team has not
 """
 from __future__ import annotations
 
+import re
+
 COUNTRY = "KR"
 NUMBERS = {"police": "112", "ambulance": "119", "fire": "119"}
 
@@ -129,6 +131,14 @@ INSURERS = (
     {"name": "흥국화재", "phone": "1688-1688", "source": INSURERS_SOURCE},
 )
 INSURER_NOTE = "대표 번호예요. 가입한 보험사 앱이나 보험증권에 적힌 번호가 있으면 그 번호를 우선하세요."
+
+# A question about settling on the spot or paying cash. The model's answer always trips the judgment check (the word
+# 합의 is blocked), so this common question gets a fixed answer written by us instead of a refusal.
+DEAL_QUESTION = re.compile(r"합의|현금|돈으로|계좌|각서|그냥 (?:끝|넘어)")
+DEAL_ANSWER = (
+    "현장에서 바로 정하지 않아도 돼요. 이 앱은 그런 결정에 대해 판단하지 않아요. "
+    "먼저 상대방의 이름, 연락처, 보험 정보를 주고받고 사진을 남기세요. 그다음 보험사에 알리고 상의하세요."
+)
 
 INFO_FIELDS = {
     "statement": "무슨 일이 있었나요",
