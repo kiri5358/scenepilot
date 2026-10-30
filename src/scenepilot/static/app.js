@@ -93,6 +93,12 @@ const ICON_PATHS = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
   volume: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/><path d="M19.5 5.5a9 9 0 010 13"/>',
   muted: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/>',
+  home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  list: '<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
+  chevron: '<path d="M9 5l7 7-7 7"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
 };
 function icon(name, cls = "") {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -249,6 +255,7 @@ function insurerPicker(onPick) {
 
 async function boot() {
   applyCountry();
+  if (isKr()) state.view = store("onboarded") ? "home" : "onboarding";   // Korea edition: the app opens on its home screen
   startLocationLookup();
   try { state.states = (await api("/api/states?country=" + state.country)).states; } catch { /* optional: the app works without it */ }
   await loadInsurers();
@@ -271,7 +278,7 @@ async function switchCountry() {
   stopWatch(); stopListening(); stopSpeaking();
   state.country = isKr() ? "US" : "KR";
   store("country", state.country); store("sid", null);
-  state.view = null; state.lastPhoto = null; state.skipOpen = false; state.qa = []; state.spokenKey = null;
+  state.view = isKr() ? "home" : null; state.lastPhoto = null; state.skipOpen = false; state.qa = []; state.spokenKey = null;
   state.geo = { status: "idle" };
   watchState.rules = null;
   applyCountry();
@@ -449,7 +456,7 @@ function applyCallButtons() {
   const ko = isKr();
   // "사고 중에만": hidden on the calm screens (home, my insurance, records); the start screen still shows them,
   // because someone may open the app in the middle of an accident.
-  const calm = ["home", "insurance", "records"].includes(state.view);
+  const calm = ["home", "profile", "records", "record", "settings", "onboarding"].includes(state.view);
   const show = !ko || callMode() === "always" || (callMode() === "accident" && !calm);
   const a = document.getElementById("call911"), b = document.getElementById("call112");
   a.style.display = show ? "" : "none";
@@ -495,6 +502,7 @@ $restart.addEventListener("click", restart);
 document.getElementById("lang").addEventListener("click", switchCountry);
 // The logo goes back to the very first (consent) screen. Nothing is recorded before the photos step, so only ask after that.
 document.getElementById("home").addEventListener("click", () => {
+  if (isKr()) { stopSpeaking(); stopWatch(); stopListening(); state.view = "home"; render(); return; }   // the logo is the home button
   const stage = state.data && state.data.session.stage;
   const early = !stage || ["consent", "safety", "emergency", "guide"].includes(stage);
   if (!early && !confirm(T("Go back to the first screen? This starts a new accident."))) return;
@@ -528,7 +536,12 @@ function setMenu(open) {
   $menu.hidden = !open;
   $menuBtn.setAttribute("aria-expanded", String(open));
 }
-$menuBtn.addEventListener("click", (e) => { e.stopPropagation(); setMenu($menu.hidden); });
+$menuBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  // Korea edition: the gear opens the settings screen, as in the mockup
+  if (isKr()) { stopWatch(); stopListening(); stopSpeaking(); state.view = state.view === "settings" ? "home" : "settings"; render(); return; }
+  setMenu($menu.hidden);
+});
 $menu.addEventListener("click", (e) => { if (e.target.closest(".menu-item")) setMenu(false); });
 document.addEventListener("click", (e) => { if (!$menu.hidden && !e.target.closest("#menu")) setMenu(false); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
@@ -558,7 +571,7 @@ function stopWatch() {
 function openWatch() {
   stopListening();
   stopSpeaking();
-  watchState.coach = false; watchState.heard = []; watchState.coachError = false;   // coaching is always off until the user switches it on
+  watchState.coach = store("aicoach") === "on"; watchState.heard = []; watchState.coachError = false;   // off until the user switches it on (in the settings or here)
   watchState.sub = "setup"; watchState.last = null; watchState.seen = new Set(); watchState.danger = null; watchState.played = [];
   state.view = "watch"; state.error = null;
   render();
@@ -749,7 +762,7 @@ function krMyCard() {
       h("div", { class: "card stack" },
         row("이름", p.name), row("연락처", p.phone), row("차량번호", p.plate), row("차량", p.vehicle),
         row("보험사", p.insurer), row("사고접수 번호", claims),
-        !(p.name || p.phone || p.plate || p.insurer) ? h("p", { class: "muted" }, "내 정보가 비어 있어요. 메뉴의 '내 정보'에서 미리 입력해 둘 수 있어요.") : null),
+        !(p.name || p.phone || p.plate || p.insurer) ? h("p", { class: "muted" }, "내 정보가 비어 있어요. 홈의 '내 보험' 탭에서 미리 입력해 둘 수 있어요.") : null),
       watchState.hideLine ? h("button", { class: "btn small", onclick: () => { watchState.hideLine = false; render(); } }, "안내 문장 다시 보이기")
         : h("div", { class: "say" },
           h("button", { class: "x", "aria-label": "문장 숨기기", onclick: () => { watchState.hideLine = true; render(); } }, "×"),
@@ -1050,6 +1063,7 @@ async function uploadPhoto(file) {
 
 // ---------- Screens ----------
 function renderSteps() {
+  if (isKr() && KR_VIEWS.concat("profile").includes(state.view)) { $steps.replaceChildren(); return; }   // no accident steps on the calm screens
   if (isKr()) {
     const at = state.view === "watch" ? 3 : state.data ? KR_STAGE_TO_STEP[state.data.session.stage] : -1;
     $steps.replaceChildren(...KR_STEPS.map((label, i) =>
@@ -1132,12 +1146,12 @@ function profileScreen() {
     }
     store("profile", profileFilled(out) ? JSON.stringify(out) : null);
     if (out.claims_phone) store("insurer", out.claims_phone);
-    state.view = null; render();
+    state.view = isKr() ? "home" : null; render();
   };
   const clear = () => {
     if (!confirm(T("Delete the details saved on this device?"))) return;
     store("profile", null); store("insurer", null);
-    state.view = null; render();
+    state.view = isKr() ? "home" : null; render();
   };
   return [
     h("div", { class: "card" },
@@ -1147,7 +1161,7 @@ function profileScreen() {
       profileFields().map(fieldEl)),
     coverCard,
     h("button", { class: "btn primary", onclick: save }, "Save"),
-    h("button", { class: "btn", onclick: () => { state.view = null; render(); } }, "Back"),
+    h("button", { class: "btn", onclick: () => { state.view = isKr() ? "home" : null; render(); } }, "Back"),
     profileFilled(p) ? h("button", { class: "btn ghost", onclick: clear }, "Delete my saved info") : null,
     h("div", { class: "card" },
       h("h2", {}, "About this app"),
@@ -1485,6 +1499,7 @@ function hubScreen(d) {
       h("p", { class: "lead" }, d.prompt.text),
       h("div", { class: "stack" },
         isKr() ? h("button", { class: "btn primary big", onclick: openWatch }, icon("ear"), "상대방과 대화 시작") : null,
+        isKr() ? h("button", { class: "btn", onclick: openAsk }, "질문하기") : null,
         h("button", { class: "btn" + (isKr() ? "" : " primary"), onclick: () => act("goto", { target: "summary" }) }, isKr() ? "마무리하기" : "Create summary"),
         extraLeft > 0 ? h("button", { class: "btn", onclick: () => act("goto", { target: "photos" }) }, `Take more photos (${extraLeft} left)`) : null,
         h("button", { class: "btn", onclick: () => act("goto", { target: "info" }) }, "Add details"),
@@ -1771,7 +1786,9 @@ function render() {
       h("div", {}, "Test mode: spoken answers are simulated (?fakespeech). Remove it from the address to use the real microphone.")));
   }
   if (state.error) parts.push(h("div", { class: "banner error", role: "alert" }, state.error));
-  if (state.view === "profile") {
+  if (isKr() && KR_SCREENS[state.view]) {
+    parts.push(...[KR_SCREENS[state.view]()].flat(2));
+  } else if (state.view === "profile") {
     parts.push(...profileScreen());
   } else if (state.view === "ask") {
     parts.push(...askScreen());
@@ -1786,6 +1803,8 @@ function render() {
     parts.unshift(busyCard());
   }
   if (isKr() && !state.view && state.data && ["safety", "emergency", "guide", "photos", "hub"].includes(state.data.session.stage)) parts.push(voiceBar());
+  if (isKr() && KR_TAB_VIEWS.includes(state.view)) parts.push(tabsBar());
+  saveCurrentRecord();
   applyCallButtons();
   $app.replaceChildren(...parts.filter(Boolean));
   updateVoiceBar();

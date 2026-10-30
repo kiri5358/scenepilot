@@ -219,6 +219,8 @@ _HANGUL_TEXT = re.compile(r"[가-힣]")
 _DOMAIN = re.compile(r"[A-Za-z0-9.\-]+\.(?:go|co|or)\.kr\S*")
 _STRAY_SCRIPT = re.compile(r"[぀-ヿ一-鿿]|[A-Za-z]{3,}")
 _ARTICLE = re.compile(r"제\s?(\d+)\s?조")
+_PHONE = re.compile(r"\d{4}\s?[-‐‑–−]\s?\d{4}")
+_HIGHWAY = re.compile(r"도로공사|고속도로|긴급견인")
 
 
 _REFERRAL = re.compile(r"전문가|경찰|보험사")
@@ -253,7 +255,12 @@ def check_answer(text: str, notes_text: str) -> bool:
         if any(n not in known for n in _ARTICLE.findall(text)):
             return False
     allowed = set(_AMOUNT.findall(notes_text))  # amounts that come word for word from our own notes may be repeated
+    korean = bool(_HANGUL_TEXT.search(text))
     for sentence in _SENTENCE.split(text):
+        # The only phone number in our notes is the highway call center. A model once told a renter to call it "within 500 m
+        # of the insurer", so a number may be named only in a sentence that says whose number it is.
+        if korean and _PHONE.search(sentence) and not _HIGHWAY.search(sentence):
+            return False
         if any(m.group(0) not in allowed for m in _AMOUNT.finditer(sentence)):
             return False
         if _DECLINES.search(sentence):

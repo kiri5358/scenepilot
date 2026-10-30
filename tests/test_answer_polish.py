@@ -54,3 +54,11 @@ def test_the_notes_no_longer_claim_a_team_check():
     from scenepilot import states
     for note in states.ui_notes("KR"):
         assert all("팀 확인" not in src.version for src in note.sources)
+
+
+def test_a_phone_number_is_only_allowed_in_a_sentence_that_says_whose_number_it_is():
+    notes = "한국도로공사서비스 콜센터 1588-2504에 문의할 수 있어요."
+    bad = "보험사는 500 m 이내에서 1588‑2504로 전화하면 됩니다."
+    good = "고속도로에서 차가 움직이지 않으면 한국도로공사서비스 콜센터 1588-2504에 문의할 수 있어요."
+    assert not assistant.check_answer(bad, notes) and assistant.check_answer(good, notes)
+    assert assistant.check_answer("부상이 있으면 119에 전화하세요.", notes)   # emergency numbers have three digits
