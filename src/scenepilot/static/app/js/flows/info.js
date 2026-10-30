@@ -13,6 +13,12 @@ async function throughDetailsStage({ state, update }, action, body) {
   let moved = false;
   update({ busy: t("busy.working"), error: null });
   try {
+    // During the guide and the photos the server takes the details as they are (there is no way to its details stage yet)
+    if (stage === "guide" || stage === "photos") {
+      await post(sessionPath(id, action), body);
+      update({ data: await api(sessionPath(id)), busy: null });
+      return true;
+    }
     if (stage !== "info") { await post(sessionPath(id, "goto"), { target: "info" }); moved = true; }
     await post(sessionPath(id, action), body);
     const data = moved ? await post(sessionPath(id, "goto"), { target: stage === "summary" ? "summary" : "hub" }) : await api(sessionPath(id));

@@ -161,14 +161,14 @@ FOLLOWUP_CHARS = 300
 INSURERS_VERIFIED = "2026-10-29"
 INSURERS_SOURCE = "https://carinfo.knia.or.kr/lmxsrv/cnswc/icnyCnswcList.do"
 INSURERS = (
-    {"name": "삼성화재", "phone": "1588-5114", "source": "https://direct.samsungfire.com/m/helpdesk/MP060200_000.html"},
-    {"name": "현대해상", "phone": "1588-5656", "source": INSURERS_SOURCE},
-    {"name": "KB손해보험", "phone": "1544-0114", "source": INSURERS_SOURCE},
-    {"name": "DB손해보험", "phone": "1588-0100", "source": "https://www.idbins.com/pc/bizxpress/ask/cc/FWCLAV1126.shtm"},
-    {"name": "메리츠화재", "phone": "1566-7711", "source": INSURERS_SOURCE},
-    {"name": "한화손해보험", "phone": "1566-8000", "source": INSURERS_SOURCE},
-    {"name": "롯데손해보험", "phone": "1588-3344", "source": INSURERS_SOURCE},
-    {"name": "흥국화재", "phone": "1688-1688", "source": INSURERS_SOURCE},
+    {"name": "삼성화재", "name_en": "Samsung Fire & Marine Insurance", "phone": "1588-5114", "source": "https://direct.samsungfire.com/m/helpdesk/MP060200_000.html"},
+    {"name": "현대해상", "name_en": "Hyundai Marine & Fire Insurance", "phone": "1588-5656", "source": INSURERS_SOURCE},
+    {"name": "KB손해보험", "name_en": "KB Insurance", "phone": "1544-0114", "source": INSURERS_SOURCE},
+    {"name": "DB손해보험", "name_en": "DB Insurance", "phone": "1588-0100", "source": "https://www.idbins.com/pc/bizxpress/ask/cc/FWCLAV1126.shtm"},
+    {"name": "메리츠화재", "name_en": "Meritz Fire & Marine Insurance", "phone": "1566-7711", "source": INSURERS_SOURCE},
+    {"name": "한화손해보험", "name_en": "Hanwha General Insurance", "phone": "1566-8000", "source": INSURERS_SOURCE},
+    {"name": "롯데손해보험", "name_en": "Lotte Insurance", "phone": "1588-3344", "source": INSURERS_SOURCE},
+    {"name": "흥국화재", "name_en": "Heungkuk Fire & Marine Insurance", "phone": "1688-1688", "source": INSURERS_SOURCE},
 )
 INSURER_NOTE = "대표 번호예요. 가입한 보험사 앱이나 보험증권에 적힌 번호가 있으면 그 번호를 우선하세요."
 

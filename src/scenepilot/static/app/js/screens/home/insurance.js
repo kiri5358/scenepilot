@@ -2,7 +2,7 @@ import { h } from "../../ui/dom.js";
 import { icon } from "../../ui/icons.js";
 import { openSheet } from "../../ui/sheet.js";
 import { api } from "../../core/api.js";
-import { t, serverText } from "../../core/i18n.js";
+import { t, serverText, getLang } from "../../core/i18n.js";
 import { getProfile, getCoverage, saveInsurance, saveCoverage } from "../../core/store.js";
 import { PROFILE_FIELDS, COVERAGES, COVERAGE_VALUES, normalizeProfile, validPolicyDates, phoneHref, pickedClaimsPhone } from "../../core/insurance.js";
 
@@ -20,8 +20,11 @@ async function fillInsurers(select, inputs, source, note) {
     if (!select.isConnected) return;
     const insurers = (data.insurers || []).filter((item) => typeof item.name === "string" && typeof item.phone === "string");
     if (!insurers.length) throw new Error("empty");
+    // In English the list shows the English company name with the Korean name beside it: the Korean name is what the
+    // other driver and the call center will recognize.
+    const label = (item) => (getLang() === "en" && typeof item.name_en === "string" && item.name_en ? `${item.name_en} (${item.name})` : item.name);
     select.replaceChildren(h("option", { value: "" }, t("insurance.picker.choose")),
-      ...insurers.map((item, i) => h("option", { value: String(i) }, item.name)));
+      ...insurers.map((item, i) => h("option", { value: String(i) }, label(item))));
     select.disabled = false;
     note.textContent = serverText(data.note) || t("insurance.picker.note");
     let previousPhone = null;
@@ -29,7 +32,7 @@ async function fillInsurers(select, inputs, source, note) {
       const item = select.value === "" ? null : insurers[Number(select.value)];
       source.replaceChildren();
       if (!item) return;
-      inputs.insurer.value = item.name;
+      inputs.insurer.value = label(item);
       const nextPhone = pickedClaimsPhone(inputs.claims_phone.value, previousPhone, item.phone);
       if (nextPhone === item.phone) previousPhone = item.phone;
       inputs.claims_phone.value = nextPhone;

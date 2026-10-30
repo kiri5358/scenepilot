@@ -8,6 +8,7 @@ import { picture, pictureThumb } from "../../ui/icons.js";
 import { act } from "../../flows/stage.js";
 import { commandTable, matchCommand } from "../../services/voice.js";
 import { repeat } from "../../services/narrator.js";
+import { openExchangeSheet } from "./exchange-sheet.js";
 
 const LAST_ITEM = Number.MAX_SAFE_INTEGER;   // "the end of the list"; the state clamps it
 
@@ -57,6 +58,9 @@ export function guideScreen(ctx) {
       ? h("div", { class: "dots", "aria-hidden": "true" }, view.items.map((_, i) => h("span", { class: i <= view.index ? "on" : "" })))
       : null,
     view.kind === "item" ? itemCard(view) : noteCard(view),
+    // the step that says to exchange names, phone numbers, insurers and plates: type them in right here
+    view.kind === "item" && pictureFor(view.text) === "exchange"
+      ? h("button", { type: "button", class: "btn btn--secondary", onclick: () => openExchangeSheet(ctx) }, t("exchange.open")) : null,
   ];
   if (view.kind === "item") {
     body.push(h("details", { class: "card" },

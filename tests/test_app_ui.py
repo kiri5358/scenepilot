@@ -123,3 +123,10 @@ def test_the_new_ui_is_the_front_page_and_the_old_one_stays_at_legacy():
     assert old.status_code == 200 and "/static/app.js" in old.text and "/static/app/" not in old.text
     assert "/static/kr_home.js" not in page.text
     assert client.get("/static/index.html").status_code == 200
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_moving_on_quickly_never_reads_the_old_sentence_on_top_of_the_new_one():
+    run = subprocess.run(["node", str(SCRIPT.with_name("app_speak_check.mjs"))], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert run.returncode == 0, run.stderr + run.stdout
+    assert "app speak checks passed" in run.stdout

@@ -365,8 +365,10 @@ def skip_item(s: Session, reason: str) -> None:
 # ---------- Details ----------
 
 def set_info(s: Session, field: str, value: str, source: Source = Source.USER_STATEMENT) -> None:
-    """Values the user typed are confirmed; values read by AI or from photos stay unconfirmed until the user confirms them."""
-    _require(s, Stage.INFO)
+    """Values the user typed are confirmed; values read by AI or from photos stay unconfirmed until the user confirms them.
+    Besides the details screen, the other driver's details may be written while the guide, the photos, the choice screen
+    or the summary is open (people exchange details at the scene before they reach the details screen)."""
+    _require(s, *INFO_STAGES)
     if field not in INFO_FIELDS:
         raise ValueError(f"Unknown field: {field}")
     value = value.strip()
@@ -375,6 +377,8 @@ def set_info(s: Session, field: str, value: str, source: Source = Source.USER_ST
         return
     s.info[field] = InfoValue(value=value, source=source, confirmed=source is Source.USER_STATEMENT)
 
+
+INFO_STAGES = (Stage.GUIDE, Stage.PHOTOS, Stage.HUB, Stage.INFO, Stage.SUMMARY)   # after the safety check, never before it
 
 SUGGESTABLE_FIELDS = ("other_contact", "other_insurance", "other_plate", "other_vehicle")
 MAX_SUGGESTION_CHARS = 80
@@ -397,7 +401,7 @@ def suggest_info(s: Session, field: str, value: str) -> bool:
 
 
 def confirm_info(s: Session, field: str) -> None:
-    _require(s, Stage.INFO)
+    _require(s, *INFO_STAGES)
     if field not in s.info:
         raise ValueError(f"No value recorded for field: {field}")
     s.info[field].confirmed = True

@@ -21,6 +21,7 @@ def test_every_entry_has_a_phone_number_a_source_and_no_duplicates():
     assert len(names) == len(set(names))
     for x in kr.INSURERS:
         assert re.fullmatch(r"\d{4}-\d{4}", x["phone"]), x
+        assert x["name_en"].isascii() and len(x["name_en"]) >= 8, x   # the English name shown when the app is read in English
         assert x["source"].startswith("https://") and any(h in x["source"] for h in ("knia.or.kr", "samsungfire.com", "idbins.com")), x
     assert len({x["phone"] for x in kr.INSURERS}) == len(kr.INSURERS)
 

@@ -245,3 +245,35 @@ def test_the_watch_rules_carry_the_sentences_for_the_korean_screen_only():
     r = client.get("/api/watch-rules?country=KR").json()
     assert r["say"] == kr.SAY_THIS and r["severity"] == kr.COACH_SEVERITY and r["tell_first"] == kr.COACH_TELL_FIRST
     assert "say" not in client.get("/api/watch-rules").json()
+
+
+# ---------- the other driver's details at the scene ----------
+
+def test_the_other_drivers_details_can_be_written_while_the_guide_or_the_photos_are_open_but_not_before_the_safety_check():
+    s = sm.new_session("KR")
+    with pytest.raises(sm.StateError):
+        sm.set_info(s, "other_contact", "홍길동 010 1111 2222")      # consent: not yet
+    sm.accept_consent(s)
+    with pytest.raises(sm.StateError):
+        sm.set_info(s, "other_contact", "홍길동 010 1111 2222")      # safety questions: not yet
+    sm.answer_safety(s, "다친 사람 없어요"); sm.answer_safety(s, "움직일 수 있어요")
+    assert s.stage is sm.Stage.GUIDE
+    sm.set_info(s, "other_contact", "홍길동 010 1111 2222")          # the guide says "exchange details"
+    sm.guide(s, "skip")
+    assert s.stage is sm.Stage.PHOTOS
+    sm.set_info(s, "other_plate", "12가3456"); sm.confirm_info(s, "other_plate")
+    assert s.info["other_contact"].confirmed and s.info["other_plate"].value == "12가3456"
+    for _ in range(3):
+        sm.submit_photo(s, analysis())
+    sm.go_to(s, "summary")
+    others = {i.value for sec in sm.build_summary(s).sections for i in sec.items}
+    assert "홍길동 010 1111 2222" in others and "12가3456" in others   # they reach the summary like details typed on the details screen
+
+
+def test_the_info_endpoint_takes_details_during_the_guide():
+    sid = client.post("/api/sessions", json={"country": "KR"}).json()["session"]["id"]
+    assert client.post(f"/api/sessions/{sid}/info", json={"field": "other_plate", "value": "12가3456"}).status_code == 409
+    client.post(f"/api/sessions/{sid}/consent")
+    client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": "no"}); client.post(f"/api/sessions/{sid}/safety-answer", json={"answer": "yes"})
+    r = client.post(f"/api/sessions/{sid}/info", json={"field": "other_plate", "value": "12가3456"})
+    assert r.status_code == 200 and r.json()["session"]["info"]["other_plate"]["value"] == "12가3456"

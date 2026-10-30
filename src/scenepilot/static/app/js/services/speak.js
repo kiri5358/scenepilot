@@ -54,12 +54,17 @@ export function pickVoice(voices, lang) {
 
 export function stop() {
   token += 1;
-  if (player) { try { player.pause(); } catch { /* already stopped */ } player = null; }
+  if (player) {
+    player.onended = null; player.onerror = null;     // a stopped clip must not start the phone's voice as a "fallback"
+    try { player.pause(); } catch { /* already stopped */ }
+    player = null;
+  }
   if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   if (playing) { playing = false; emit(); }
 }
 
-function deviceSpeak(text, next) {
+function deviceSpeak(text, next, mine) {
+  if (mine !== undefined && mine !== token) return;   // replaced or stopped while it waited: say nothing
   if (typeof window === "undefined" || !("speechSynthesis" in window)) { setTimeout(next, 0); return; }
   const lang = /[가-힣]/.test(text) ? "ko-KR" : getLang() === "en" ? "en-US" : "ko-KR";
   const utterance = new SpeechSynthesisUtterance(spokenText(text));
@@ -75,16 +80,17 @@ function deviceSpeak(text, next) {
   window.speechSynthesis.speak(utterance);
 }
 
-function sayOne(text, next) {
+function sayOne(text, next, mine) {
   const language = getLang() === "en" ? "en" : "ko";
   const file = clips[language][sentenceKey(text)];
-  if (!file) { deviceSpeak(text, next); return; }
+  if (!file) { deviceSpeak(text, next, mine); return; }
   const audio = new Audio(CLIP_BASE[language] + file);
   audio.playbackRate = RATE;
   player = audio;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; clearTimeout(timer); next(); };
-  const fallBack = () => { if (finished) return; finished = true; clearTimeout(timer); deviceSpeak(text, next); };
+  // a clip that was stopped (the person moved on) also rejects its play() with an AbortError: that is not a reason to read it aloud
+  const fallBack = () => { if (finished) return; finished = true; clearTimeout(timer); if (mine === token) deviceSpeak(text, next, mine); };
   const timer = setTimeout(finish, 60000);
   audio.onended = finish;
   audio.onerror = fallBack;               // a missing or unplayable file: the phone's voice
@@ -103,7 +109,7 @@ export function speak(parts, { force = false, onDone = null, remember = true } =
   const step = (i) => {
     if (mine !== token) return;           // replaced by a newer speak(), or stopped
     if (i >= list.length) { playing = false; emit(); if (onDone) onDone(); return; }
-    sayOne(list[i], () => step(i + 1));
+    sayOne(list[i], () => step(i + 1), mine);
   };
   step(0);
 }
