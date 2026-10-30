@@ -335,6 +335,49 @@ async def confirm_info(session_id: str, body: ConfirmIn) -> dict:
     return _view(s)
 
 
+class ChoiceIn(BaseModel):
+    item: str
+    state: str
+
+
+class FollowupIn(BaseModel):
+    text: Annotated[str, StringConstraints(max_length=kr.FOLLOWUP_CHARS * 2)]
+
+
+@app.post("/api/sessions/{session_id}/hit")
+async def set_hit(session_id: str, body: ChoiceIn) -> dict:
+    s = _get(session_id)
+    _call(sm.set_hit, s, body.item, body.state)
+    return _view(s)
+
+
+@app.post("/api/sessions/{session_id}/coverage")
+async def set_coverage(session_id: str, body: ChoiceIn) -> dict:
+    s = _get(session_id)
+    _call(sm.set_coverage, s, body.item, body.state)
+    return _view(s)
+
+
+class ContactIn(BaseModel):
+    state: str | None = None
+    number: Annotated[str, StringConstraints(max_length=100)] | None = None
+    agent: Annotated[str, StringConstraints(max_length=100)] | None = None
+
+
+@app.post("/api/sessions/{session_id}/contact")
+async def set_contact(session_id: str, body: ContactIn) -> dict:
+    s = _get(session_id)
+    _call(sm.set_contact, s, body.state, body.number, body.agent)
+    return _view(s)
+
+
+@app.post("/api/sessions/{session_id}/followup")
+async def add_followup(session_id: str, body: FollowupIn) -> dict:
+    s = _get(session_id)
+    _call(sm.add_followup, s, body.text)
+    return _view(s)
+
+
 @app.post("/api/sessions/{session_id}/goto")
 async def goto(session_id: str, body: GoTo) -> dict:
     s = _get(session_id)

@@ -154,8 +154,11 @@ _KO_DENIED = re.compile(
     r"|(?:다들|모두|전부|다|우리|저희)\s*(?:다\s*)?(?:괜찮|멀쩡|무사|안전)\S*"
 )
 _KO_YES_TOKENS = ("네", "예", "응", "넵", "넹", "맞", "그래", "그럼", "물론", "있")
-_KO_NO_TOKENS = ("아니", "아뇨", "없", "괜찮", "멀쩡")
-_KO_STUCK = re.compile(r"(?<![가-힣])(?:안 ?되|안돼|못)|없|불가|아니|아뇨|멈|시동|견인")
+_KO_NO_TOKENS = ("아니", "아뇨", "아냐", "아닙", "아닌", "없", "괜찮", "멀쩡")
+_KO_STUCK = re.compile(r"(?<![가-힣])(?:안 ?되|안돼|못)|없|불가|아니|아뇨|아냐|아닙|아닌|멈|시동|견인")
+# In a noisy place (or with a quick, soft "네") the Korean recognizer often writes a sound-alike for the one-word "yes".
+# Only when that is the whole answer are these read as yes, so they never change a longer sentence.
+_KO_YES_ALIKES = {"내", "네", "녜", "레", "옝", "넹", "넵", "옙", "네에", "내에", "예에", "네네", "내내", "예예", "응응", "으응"}
 _KO_MOVABLE_YES = ("네", "예", "응", "넵", "넹", "맞", "그래", "그럼", "물론", "가능", "있", "돼", "되", "움직", "괜찮")
 
 
@@ -174,6 +177,8 @@ def _parse_ko(text: str, question_id: str) -> Answer | None:
         return None
     if _KO_UNSURE.search(t):
         return Answer.UNSURE
+    if t in _KO_YES_ALIKES:
+        return Answer.YES
     if question_id == "danger":
         remainder = _KO_DENIED.sub(" ", t)
         if any(p.search(remainder) for p in (_KO_INJURY_POS, _KO_FIRE_POS, _KO_VULN_POS)):

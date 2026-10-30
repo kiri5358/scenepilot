@@ -14,6 +14,9 @@ const $listen = document.getElementById("listenbar");
 
 const STEPS = [["consent", "Consent"], ["safety", "Safety"], ["photos", "Photos"], ["wrap", "Wrap-up"], ["summary", "Summary"]];
 const STAGE_TO_STEP = { consent: 0, safety: 1, emergency: 1, guide: 1, photos: 2, hub: 3, info: 3, summary: 4 };
+// Korea edition: the five steps of the screen mockup. The start screen is not a step, so nothing is highlighted there.
+const KR_STEPS = ["안전", "할 일", "사진", "대화", "마무리"];
+const KR_STAGE_TO_STEP = { consent: -1, safety: 0, emergency: 0, guide: 1, photos: 2, hub: 2, info: 3, summary: 4 };
 const STATUS_MARK = { captured: "✓", needs_retake: "↻", skipped: "–", pending: "○" };
 const STATUS_TEXT = { captured: "Taken", needs_retake: "Retake", skipped: "Skipped", pending: "Waiting" };
 const SKIP_REASONS = ["The other driver said no", "Not safe to take it", "Not applicable"];
@@ -88,6 +91,14 @@ const ICON_PATHS = {
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
   ear: '<path d="M7 9a5 5 0 0110 0c0 3-3 3.5-3 6.5a2.5 2.5 0 01-5 0"/><path d="M10 9a2 2 0 014 0"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
+  volume: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/><path d="M19.5 5.5a9 9 0 010 13"/>',
+  muted: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/>',
+  home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  list: '<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
+  chevron: '<path d="M9 5l7 7-7 7"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
 };
 function icon(name, cls = "") {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -188,7 +199,7 @@ async function startSession() {
 // the menu's own labels, the page language, and the audio clips.
 const EMERGENCY_BUTTONS = {
   US: [["911", "tel:911", "Call 911 now"]],
-  KR: [["119", "tel:119", "119 구급·소방에 전화"], ["112", "tel:112", "112 경찰에 전화"]],
+  KR: [["119 구급", "tel:119", "119 구급·소방에 전화"], ["112 경찰", "tel:112", "112 경찰에 전화"]],
 };
 function applyCountry() {
   const ko = isKr();
@@ -244,6 +255,7 @@ function insurerPicker(onPick) {
 
 async function boot() {
   applyCountry();
+  if (isKr()) state.view = store("onboarded") ? "home" : "onboarding";   // Korea edition: the app opens on its home screen
   startLocationLookup();
   try { state.states = (await api("/api/states?country=" + state.country)).states; } catch { /* optional: the app works without it */ }
   await loadInsurers();
@@ -266,7 +278,7 @@ async function switchCountry() {
   stopWatch(); stopListening(); stopSpeaking();
   state.country = isKr() ? "US" : "KR";
   store("country", state.country); store("sid", null);
-  state.view = null; state.lastPhoto = null; state.skipOpen = false; state.qa = []; state.spokenKey = null;
+  state.view = isKr() ? "home" : null; state.lastPhoto = null; state.skipOpen = false; state.qa = []; state.spokenKey = null;
   state.geo = { status: "idle" };
   watchState.rules = null;
   applyCountry();
@@ -308,11 +320,30 @@ const PROFILE_FIELDS = [
 function loadProfile() {
   try { return JSON.parse(store("profile") || "{}") || {}; } catch { return {}; }
 }
-const profileFilled = (p) => Object.values(p).some((v) => v && String(v).trim());
+const profileFilled = (p) => Object.values(p).some((v) => v && (typeof v === "object" ? Object.keys(v).length : String(v).trim()));
 const profileFields = () => PROFILE_FIELDS.filter(([k]) => !(isKr() && k === "home_state"));   // Korea has no states
+// Korea edition: the user's own note of what their policy has. Kept on the device; blank is "don't know", never "not covered".
+const COVER_ITEMS = [
+  ["liab2", "대인배상Ⅱ"], ["property", "대물배상"], ["injury", "자동차상해 또는 자기신체사고"],
+  ["own", "자기차량손해 (자차)"], ["uninsured", "무보험자동차에 의한 상해"], ["tow", "긴급출동 특약"],
+];
+const COVER_STATES = { "": "모름", yes: "가입으로 기재", no: "미가입으로 기재" };
+const coverRows = (p) => isKr() && p.cover
+  ? COVER_ITEMS.filter(([k]) => p.cover[k]).map(([k, label]) => [label, COVER_STATES[p.cover[k]]]) : [];
+// what to ask the insurer: chosen by what the user recorded was hit, never what the policy pays
+function askInsurerLines(s, p) {
+  const hit = Object.fromEntries((s.hit_rows || []).map((r) => [r.id, r.state]));
+  const out = [];
+  if (hit.person === "yes") out.push("다친 사람이 있다면 대인 접수와 필요한 서류를 보험사에 물어보세요.");
+  if (hit.vehicle === "yes" || hit.facility === "yes") out.push("상대 차량이나 시설물 피해는 대물 접수 여부를 보험사에 물어보세요.");
+  out.push("내 차 수리는 자기차량손해 가입 여부와 자기부담금을 보험증권이나 보험사에서 확인하세요.");
+  if (p.cover && p.cover.tow === "yes") out.push("긴급출동 특약이 있다고 기재했어요. 견인 범위와 추가 비용을 먼저 물어보세요.");
+  if (p.period) out.push(`보험 기간으로 기재한 내용: ${p.period}. 사고일이 이 기간에 있는지 확인하세요.`);
+  return out;
+}
 const profileRows = (p) => profileFields().filter(([k]) => p[k] && String(p[k]).trim()).map(([k, label]) => [T(label), p[k]]);
 function profileText(p) {
-  const rows = profileRows(p);
+  const rows = [...profileRows(p), ...coverRows(p)];
   if (!rows.length) return "";
   return T("Your details (entered by you, kept on your device)") + "\n" + rows.map(([l, v]) => `  - ${l}: ${v}`).join("\n");
 }
@@ -418,10 +449,60 @@ $voice.addEventListener("click", () => {
   $voice.setAttribute("aria-pressed", String(state.voiceOn));
   if (state.voiceOn) { state.spokenKey = null; maybeSpeak(); } else stopSpeaking();
 });
+// Korea edition: when the 119 and 112 buttons show at the top. The big call buttons on the emergency screen always show.
+const CALL_MODES = { always: "항상 보이기", accident: "사고 중에만 보이기", hide: "숨기기" };
+const callMode = () => (CALL_MODES[store("calls")] ? store("calls") : "accident");
+function applyCallButtons() {
+  const ko = isKr();
+  // "사고 중에만": hidden on the calm screens (home, my insurance, records); the start screen still shows them,
+  // because someone may open the app in the middle of an accident.
+  const calm = ["home", "profile", "records", "record", "settings", "onboarding"].includes(state.view);
+  const show = !ko || callMode() === "always" || (callMode() === "accident" && !calm);
+  const a = document.getElementById("call911"), b = document.getElementById("call112");
+  a.style.display = show ? "" : "none";
+  b.style.display = show ? "" : "none";
+  const item = document.getElementById("calls");
+  item.hidden = !ko;
+  if (ko) document.getElementById("calls-label").textContent = `119·112 버튼: ${CALL_MODES[callMode()]}`;
+}
+document.getElementById("calls").addEventListener("click", () => {
+  const order = Object.keys(CALL_MODES);
+  store("calls", order[(order.indexOf(callMode()) + 1) % order.length]);
+  applyCallButtons();
+});
+
+// Korea edition: the voice bar under the screen (stop or replay the spoken guidance, switch it off).
+function voiceBar() {
+  const p = state.data && state.data.prompt;
+  const bar = h("div", { class: "vb" + (state.voiceOn ? "" : " muted"), id: "vb", role: "status" });
+  const text = h("span", { class: "vbt", id: "vb-text" });
+  const act1 = h("button", { type: "button", class: "vbb", id: "vb-act" });
+  const vol = h("button", { type: "button", class: "vol" + (state.voiceOn ? "" : " off"), "aria-pressed": String(!state.voiceOn),
+    "aria-label": state.voiceOn ? "안내 음성 끄기" : "안내 음성 켜기" },
+  icon(state.voiceOn ? "volume" : "muted"));
+  act1.addEventListener("click", () => {
+    if (!state.voiceOn) { $voice.click(); return; }
+    if (speaking) stopSpeaking(); else if (p) speak(speechParts(p, true), true);
+    updateVoiceBar();
+  });
+  vol.addEventListener("click", () => { $voice.click(); render(); });
+  bar.append(text, h("span", { class: "vbr" }, act1, vol));
+  return bar;
+}
+function updateVoiceBar() {
+  const text = document.getElementById("vb-text"), act1 = document.getElementById("vb-act");
+  if (!text || !act1) return;
+  if (!state.voiceOn) { text.textContent = "안내 음성 꺼짐 · 글자로 안내해요"; act1.textContent = "음성 켜기"; return; }
+  text.textContent = speaking ? "안내 음성을 읽고 있어요" : "안내 음성을 멈췄어요";
+  act1.textContent = speaking ? "멈추기" : "다시 듣기";
+}
+setInterval(updateVoiceBar, 400);
+
 $restart.addEventListener("click", restart);
 document.getElementById("lang").addEventListener("click", switchCountry);
 // The logo goes back to the very first (consent) screen. Nothing is recorded before the photos step, so only ask after that.
 document.getElementById("home").addEventListener("click", () => {
+  if (isKr()) { stopSpeaking(); stopWatch(); stopListening(); state.view = "home"; render(); return; }   // the logo is the home button
   const stage = state.data && state.data.session.stage;
   const early = !stage || ["consent", "safety", "emergency", "guide"].includes(stage);
   if (!early && !confirm(T("Go back to the first screen? This starts a new accident."))) return;
@@ -455,7 +536,12 @@ function setMenu(open) {
   $menu.hidden = !open;
   $menuBtn.setAttribute("aria-expanded", String(open));
 }
-$menuBtn.addEventListener("click", (e) => { e.stopPropagation(); setMenu($menu.hidden); });
+$menuBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  // Korea edition: the gear opens the settings screen, as in the mockup
+  if (isKr()) { stopWatch(); stopListening(); stopSpeaking(); state.view = state.view === "settings" ? "home" : "settings"; render(); return; }
+  setMenu($menu.hidden);
+});
 $menu.addEventListener("click", (e) => { if (e.target.closest(".menu-item")) setMenu(false); });
 document.addEventListener("click", (e) => { if (!$menu.hidden && !e.target.closest("#menu")) setMenu(false); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
@@ -464,7 +550,17 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(fa
 // Off by default. When the user starts it, the microphone listens during the talk with the other driver and a fixed
 // reminder is spoken when a rule's phrase is heard (rules come from the server; matching is plain code in watch.js).
 // It runs only while this screen is open, so it never competes with the hands-free answers. Nothing heard is stored or sent.
-const watchState = { running: false, status: "stopped", message: null, rules: null, cooldown: 30, handle: null, played: [], coach: false, heard: [], coachError: false };
+const watchState = {
+  running: false, status: "stopped", message: null, rules: null, cooldown: 30, handle: null, played: [], coach: false, heard: [], coachError: false,
+  // Korea edition screens: setup -> coach (or notalk), with my-card and danger shown on top
+  sub: "setup", back: "coach", mode: store("coachmode") === "ear" ? "ear" : "screen", last: null, seen: new Set(), danger: null, hideLine: false,
+  say: {}, severity: {}, tellFirst: "",
+};
+
+// One, two or three pulses for "a detail is missing", "stop and check", "danger". Phones that cannot vibrate just skip it.
+function vibrate(severity) {
+  try { if (navigator.vibrate) navigator.vibrate(severity >= 3 ? [600, 150, 600, 150, 600] : severity === 2 ? [200, 120, 200] : [200]); } catch { /* not supported */ }
+}
 
 function stopWatch() {
   if (watchState.handle) watchState.handle.stop();
@@ -475,7 +571,8 @@ function stopWatch() {
 function openWatch() {
   stopListening();
   stopSpeaking();
-  watchState.coach = false; watchState.heard = []; watchState.coachError = false;   // coaching is always off until the user switches it on
+  watchState.coach = store("aicoach") === "on"; watchState.heard = []; watchState.coachError = false;   // off until the user switches it on (in the settings or here)
+  watchState.sub = "setup"; watchState.last = null; watchState.seen = new Set(); watchState.danger = null; watchState.played = [];
   state.view = "watch"; state.error = null;
   render();
 }
@@ -493,15 +590,26 @@ async function startWatch() {
     try {
       const r = await api("/api/watch-rules?country=" + state.country);
       watchState.rules = r.rules; watchState.cooldown = r.cooldown_seconds; watchState.compact = !!r.compact;
+      watchState.say = r.say || {}; watchState.severity = r.severity || {}; watchState.tellFirst = r.tell_first || "";
     } catch (e) { watchState.message = "Could not load the reminders. " + e.message; render(); return; }
   }
-  watchState.running = true; watchState.status = "listening"; watchState.played = []; watchState.heard = []; watchState.coachError = false;
+  watchState.running = true; watchState.status = "listening"; watchState.coachError = false;
+  if (watchState.sub === "setup") { watchState.sub = "coach"; watchState.played = []; watchState.heard = []; }
   watchState.handle = Watch.start({
     speech: Speech, rules: watchState.rules, cooldownSeconds: watchState.cooldown, compact: watchState.compact,
     coach: isKr() && watchState.coach ? { send: sendToCoach, windowChars: 500, minGapMs: 2500 } : null,
     onHint: (rule, done) => {
       watchState.played.unshift(rule.hint);
-      if (state.view === "watch") render();
+      if (isKr()) {
+        const severity = watchState.severity[rule.id] || 1;
+        watchState.last = { id: rule.id, hint: rule.hint };
+        watchState.seen.add(rule.id);
+        vibrate(severity);
+        if (["hostile", "drunk", "pain"].includes(rule.id)) watchState.danger = { id: rule.id, hint: rule.hint };
+        if (state.view === "watch") render();
+        // the default is screen + vibration: no sound, so nothing is said out loud near the other driver
+        if (watchState.mode === "screen") { setTimeout(done, 300); return; }
+      } else if (state.view === "watch") render();
       speak(rule.hint, true, done);
     },
     onStatus: (status, message) => {
@@ -536,21 +644,21 @@ async function sendToCoach(text, seconds) {
   return r;
 }
 
-function coachCard() {
+function coachCard(withButton = true) {
   if (!isKr()) return null;
-  return h("div", { class: "card" },
-    h("h2", {}, "AI 코칭"),
+  return h(withButton ? "div" : "details", { class: "card" + (withButton ? "" : " more") },
+    withButton ? h("h2", {}, "AI 코칭") : h("summary", {}, "AI 코칭 자세히 보기"),
     h("p", { class: "muted" }, "켜면 대화를 글자로 바꾼 최근 몇 문장이 서버의 AI 모델(NVIDIA Nemotron)로 전송됩니다. 모델은 위험한 상황과 상대방이 말한 정보를 알아듣고, 지금 상황에 맞는 조언을 직접 짧게 만들어 들려줍니다. 만든 문장은 앱의 안전 검사를 통과해야 하며, 통과하지 못하면 미리 준비한 알림이 대신 나옵니다. 사고의 책임·법률·의료 판단은 하지 않습니다."),
     h("ul", { class: "muted" },
       h("li", {}, "글자는 이 요청에만 쓰이고 저장하거나 기록하지 않습니다. 소리는 보내지 않습니다."),
       h("li", {}, "상대방의 말이 포함될 수 있으니 상대방에게 앱을 쓰고 있다고 미리 알려 주세요."),
       h("li", {}, "알아들은 정보는 '확인 전' 제안으로만 요약에 들어가고, 직접 확인해야 사실로 바뀝니다."),
       h("li", {}, "실시간 대화 처리의 법적 문제는 아직 전문가 확인 전입니다. 이 기능은 초안입니다.")),
-    h("button", {
+    withButton ? h("button", {
       class: "btn" + (watchState.coach ? " primary" : ""), "aria-pressed": String(watchState.coach), disabled: watchState.running ? true : null,
       onclick: () => { watchState.coach = !watchState.coach; render(); },
-    }, watchState.coach ? "AI 코칭 켜짐 (누르면 끔)" : "AI 코칭 켜기"),
-    watchState.running ? h("p", { class: "muted" }, "코칭을 바꾸려면 먼저 듣기를 중지하세요.") : null,
+    }, watchState.coach ? "AI 코칭 켜짐 (누르면 끔)" : "AI 코칭 켜기") : null,
+    withButton && watchState.running ? h("p", { class: "muted" }, "코칭을 바꾸려면 먼저 듣기를 중지하세요.") : null,
     watchState.coachError ? h("div", { class: "banner warn" }, icon("alert", "sm"), h("div", {}, "AI 코칭에 연결하지 못했어요. 규칙 알림은 계속 작동합니다.")) : null);
 }
 
@@ -562,7 +670,130 @@ function heardCard() {
     h("p", { class: "muted" }, "누구의 정보인지, 맞는지 '세부 정보 추가'에서 확인하세요. 확인하기 전에는 요약에 '미확인'으로 표시됩니다."));
 }
 
+// ---- Korea edition: the coaching screens of the mockup ----
+const closeCoach = (target) => {
+  stopWatch(); state.view = null; state.spokenKey = null;
+  if (target === "call") state.sumView = { sid: sid(), view: "call" };
+  if (target) return act("goto", { target: target === "call" ? "summary" : target });
+  render();
+};
+
+function coachRows() {
+  const d = state.data, info = d ? d.session.info : {}, cov = d ? d.session.coverage : {};
+  const row = (name, field) => {
+    const iv = info[field];
+    return [name, iv ? iv.value : "아직 못 들었어요", iv ? (iv.confirmed ? ["✓ 확인함", "ok"] : ["◐ 들은 내용", "hd"]) : ["○ 아직", "unk"]];
+  };
+  const scope = ["vehicle_claim", "injury_claim"].some((k) => cov[k] === "confirmed") ? ["확인했어요 (내가 기록)", ["✓ 확인함", "ok"]]
+    : watchState.seen.has("coverage") ? ["접수했다고 함 · 범위 모름", ["◐ 들은 내용", "hd"]] : ["아직 못 들었어요", ["○ 아직", "unk"]];
+  return [row("상대 이름·연락처", "other_contact"), row("상대 차량번호", "other_plate"), row("상대 보험사", "other_insurance"), ["접수 범위", ...scope]];
+}
+
+function krCoachSetup() {
+  const pick = (m) => () => { watchState.mode = m; store("coachmode", m); render(); };
+  const mode = (m, title, text) => h("button", { class: "mode" + (watchState.mode === m ? " on" : ""), "aria-pressed": String(watchState.mode === m), onclick: pick(m) },
+    h("span", { class: "mt" }, title), h("span", { class: "ms" }, text));
+  return [
+    h("div", { class: "kr-question" },
+      h("h1", { class: "q" }, "상대방과 대화할 때 옆에서 도와드려요"),
+      h("p", { class: "sub" }, "코칭을 어떻게 받을까요?"),
+      mode("screen", "화면 + 진동", "앱이 소리를 내지 않아요. 진동이 오면 화면을 보세요."),
+      mode("ear", "이어폰으로 듣기", "이어폰이 끊기면 스피커로 바꾸지 않고 화면으로 알려요."),
+      h("button", { class: "mode" + (watchState.coach ? " on" : ""), "aria-pressed": String(watchState.coach), onclick: () => { watchState.coach = !watchState.coach; render(); } },
+        h("span", { class: "mt" }, watchState.coach ? "AI 코칭 켜짐 (NVIDIA Nemotron)" : "AI 코칭 켜기 (NVIDIA Nemotron)"),
+        h("span", { class: "ms" }, "최근 몇 문장의 글자만 서버로 보내요. 소리는 보내지 않고, 글자도 저장하지 않아요. 끄면 기본 알림만 나와요.")),
+      h("div", { class: "tell" }, h("p", { class: "tk" }, "상대방에게 먼저 알려 주세요"), h("p", { class: "tv" }, `"${watchState.tellFirst || "사고 처리 앱이 대화를 듣고 정리를 도와주고 있어요."}"`)),
+      watchState.message ? h("div", { class: "banner warn" }, icon("alert", "sm"), h("div", {}, watchState.message)) : null,
+      h("button", { class: "btn primary big", onclick: startWatch }, icon("mic"), "대화 시작"),
+      h("button", { class: "btn", onclick: () => { watchState.sub = "notalk"; render(); } }, "대화하기 싫어요 · 연락처만 주고받기"),
+      h("button", { class: "btn ghost", onclick: closeWatch }, "뒤로")),
+    coachCard(false),
+  ];
+}
+
+function krCoach() {
+  const on = watchState.running;
+  const last = watchState.last, severity = last ? watchState.severity[last.id] || 1 : 0;
+  const say = last ? watchState.say[last.id] : null;
+  return [
+    h("div", { class: "live" + (on ? "" : " paused"), role: "status" }, h("span", { class: "livedot" }), on ? "듣는 중" : "일시정지"),
+    h("div", { class: "coach" },
+      h("div", { class: "ck" }, h("span", {}, "코치"), severity ? h("span", { class: "vib" }, `진동 ${severity}번 · ${severity === 1 ? "빠진 정보" : severity === 2 ? "멈춤" : "위험"}`) : null),
+      h("p", { class: "ct" }, last ? last.hint : "대화를 듣고 있어요. 필요할 때 한 줄로 알려 드릴게요.")),
+    say ? h("div", { class: "say" }, h("span", { class: "sk" }, "이렇게 말해 보세요"), h("p", { class: "sv" }, `"${say}"`)) : null,
+    h("div", { class: "list", "aria-label": "확인할 것" }, coachRows().map(([name, value, [chip, kind]]) =>
+      h("div", { class: "li" }, h("div", {}, h("p", { class: "ln" }, name), h("p", { class: "lv" }, value)), h("span", { class: "chip " + kind }, chip)))),
+    watchState.coachError ? h("div", { class: "banner warn" }, icon("alert", "sm"), h("div", {}, "AI 코칭에 연결하지 못했어요. 규칙 알림은 계속 작동합니다.")) : null,
+    h("div", { class: "lb" + (on ? "" : " paused"), role: "status" },
+      h("span", { class: "lbt" }, on ? "대화를 듣고 코칭하고 있어요" : "일시정지했어요 · 지금은 듣지 않아요",
+        h("span", { class: "lbs" }, on ? "녹음·저장은 하지 않아요" : "다시 들으면 이어서 코칭해요")),
+      h("button", { class: "vbb", onclick: () => { if (on) { stopWatch(); render(); } else startWatch(); } }, on ? "일시정지" : "다시 듣기")),
+    h("div", { class: "two" },
+      h("button", { class: "btn", onclick: () => { watchState.back = "coach"; watchState.sub = "mycard"; render(); } }, icon("pin"), "내 정보 보여주기"),
+      h("button", { class: "btn primary", onclick: () => closeCoach("summary") }, "대화 끝")),
+    heardCard(),
+  ];
+}
+
+function krDanger() {
+  const d = watchState.danger;
+  const hurt = d.id === "pain";
+  const call = (n, label, cls) => h("a", { class: "btn big " + cls, href: `tel:${n}` }, icon("phone"), label);
+  return [
+    h("div", { class: "danger-screen", role: "alert" },
+      h("p", { class: "dk" }, hurt ? "몸이 불편하다는 말이 들렸어요" : "위험할 수 있어요"),
+      h("h1", { class: "dq" }, hurt ? "119에 먼저 전화하세요" : "대화를 멈추고 안전한 곳으로 가세요"),
+      h("p", { class: "dt" }, d.hint),
+      h("p", { class: "dt" }, "붙잡거나 따라가지 마세요."),
+      hurt ? [call("119", "119 전화 (구급·소방)", "danger"), call("112", "112 전화 (경찰)", "blue")]
+        : [call("112", "112 전화 (경찰)", "blue"), call("119", "119 전화 (구급·소방)", "danger")]),
+    h("button", { class: "btn", onclick: () => { watchState.danger = null; render(); } }, "괜찮아졌어요 · 코칭으로 돌아가기"),
+  ];
+}
+
+function krMyCard() {
+  const p = loadProfile();
+  const row = (label, value) => value ? h("div", { class: "mc-row" }, h("span", { class: "mc-l" }, label), h("span", { class: "mc-v" }, value)) : null;
+  const claims = store("insurer") || p.claims_phone;
+  return [
+    h("div", { class: "kr-question" },
+      h("h1", { class: "q" }, "내 정보"),
+      h("p", { class: "sub" }, "상대방에게 보여 주세요. 이름과 연락처를 알려 주는 것은 법에서 정한 의무예요."),
+      h("div", { class: "card stack" },
+        row("이름", p.name), row("연락처", p.phone), row("차량번호", p.plate), row("차량", p.vehicle),
+        row("보험사", p.insurer), row("사고접수 번호", claims),
+        !(p.name || p.phone || p.plate || p.insurer) ? h("p", { class: "muted" }, "내 정보가 비어 있어요. 홈의 '내 보험' 탭에서 미리 입력해 둘 수 있어요.") : null),
+      watchState.hideLine ? h("button", { class: "btn small", onclick: () => { watchState.hideLine = false; render(); } }, "안내 문장 다시 보이기")
+        : h("div", { class: "say" },
+          h("button", { class: "x", "aria-label": "문장 숨기기", onclick: () => { watchState.hideLine = true; render(); } }, "×"),
+          h("p", { class: "sv" }, "보험 처리로 진행하고 싶습니다."), h("p", { class: "en" }, "I would like to proceed through insurance.")),
+      h("button", { class: "btn primary big", onclick: () => { watchState.sub = watchState.back; render(); } }, "돌아가기")),
+  ];
+}
+
+function krNoTalk() {
+  const step = (n, title, text, label, onclick) => h("div", { class: "card stack" },
+    h("h2", {}, h("span", { class: "num" }, n), title), h("p", { class: "muted" }, text), h("button", { class: "btn", onclick }, label));
+  return [
+    h("div", { class: "kr-question" },
+      h("h1", { class: "q" }, "대화 없이 진행해요"),
+      h("div", { class: "say" }, h("span", { class: "sk" }, "이렇게 말해 보세요"),
+        h("p", { class: "sv" }, "\"연락처랑 보험사만 알려 드리고 나머지는 보험사끼리 처리하면 좋겠습니다.\"")),
+      step(1, "내 정보 보여주기", "이름과 연락처를 알려 주는 것은 법에서 정한 의무라서 건너뛸 수 없어요.", "내 정보 보여주기",
+        () => { watchState.back = "notalk"; watchState.sub = "mycard"; render(); }),
+      step(2, "상대 연락처·보험사 받기", "거부하면 붙잡지 말고 안전한 곳에서 112에 연락하세요.", "세부 정보 입력", () => closeCoach("info")),
+      step(3, "보험사 접수·현장출동 요청", "통화 준비 카드를 보고 보험사에 전화하세요.", "보험사에 말할 내용", () => closeCoach("call")),
+      h("button", { class: "btn ghost", onclick: () => { watchState.sub = "setup"; render(); } }, "뒤로")),
+  ];
+}
+
+function krWatchScreen() {
+  if (watchState.danger) return krDanger();
+  return { setup: krCoachSetup, coach: krCoach, notalk: krNoTalk, mycard: krMyCard }[watchState.sub]();
+}
+
 function watchScreen() {
+  if (isKr()) return krWatchScreen();
   const on = watchState.running;
   return [
     h("div", { class: "card" },
@@ -613,8 +844,14 @@ function voiceContext() {
 
 const QUICK_ANSWER = /\b(yes|yeah|yep|yup|no|nope|nah|nobody|not sure|unsure|don't know|maybe)\b/;
 // Korean: an answer word anywhere in the sentence (endings attach to the stem, so there are no word boundaries).
-const QUICK_ANSWER_KR = /네|예|응|넵|아니|아뇨|없어|없습니다|있어|있습니다|모르겠|몰라|괜찮|맞아|그래/;
-const isQuickAnswer = (t) => (isKr() ? QUICK_ANSWER_KR.test(Speech.normalize(t)) : QUICK_ANSWER.test(Speech.normalize(t)));
+const QUICK_ANSWER_KR = /네|예|응|넵|아니|아뇨|아냐|아닙|없어|없습니다|있어|있습니다|모르겠|몰라|괜찮|맞아|그래|옮길 ?수|못 ?옮|안 ?돼|움직일 ?수|못 ?움직/;
+// A one-word "yes" that the recognizer wrote as a sound-alike counts only when it is the whole sentence: a bare "내" inside
+// the question the phone is reading ("내 차를 ...") must not be mistaken for an answer.
+const QUICK_ALIKE_KR = /^(?:[내네녜레옝넹넵옙]\s?){1,2}$/;
+const isQuickAnswer = (t) => {
+  const n = Speech.normalize(t);
+  return isKr() ? QUICK_ANSWER_KR.test(n) || QUICK_ALIKE_KR.test(n) : QUICK_ANSWER.test(n);
+};
 
 function rawVoiceContext() {
   if (state.view === "ask") {
@@ -832,6 +1069,13 @@ async function uploadPhoto(file) {
 
 // ---------- Screens ----------
 function renderSteps() {
+  if (isKr() && KR_VIEWS.concat("profile").includes(state.view)) { $steps.replaceChildren(); return; }   // no accident steps on the calm screens
+  if (isKr()) {
+    const at = state.view === "watch" ? 3 : state.data ? KR_STAGE_TO_STEP[state.data.session.stage] : -1;
+    $steps.replaceChildren(...KR_STEPS.map((label, i) =>
+      h("div", { class: "step" + (i < at ? " done" : i === at ? " now" : ""), "aria-current": i === at ? "step" : false }, label)));
+    return;
+  }
   const now = state.data ? STAGE_TO_STEP[state.data.session.stage] : 0;
   $steps.replaceChildren(...STEPS.map(([, label], i) =>
     h("div", { class: "step" + (i < now ? " done" : i === now ? " now" : ""), "aria-current": i === now ? "step" : false }, label)));
@@ -883,18 +1127,37 @@ function profileScreen() {
     return h("div", {}, h("label", { for: "p-" + key }, label), el,
       kind === "state" ? h("div", { class: "muted", style: "margin-top:6px" }, "State-specific guidance is available for " + (state.states.map((x) => x.name).join(" and ") || "a few states") + ". Other states get general guidance.") : null);
   };
+  const coverSel = {};
+  const periodInput = h("input", { type: "text", id: "p-period", autocomplete: "off", placeholder: "예: 2026-03-01 ~ 2027-03-01" });
+  periodInput.value = p.period || "";
+  const coverCard = !isKr() ? null : h("div", { class: "card stack" },
+    h("h2", {}, "보험 확인 카드"),
+    h("p", { class: "muted" }, "보험증권을 보고 직접 기재하세요. 비워 두면 '모름'이에요. 모름은 미가입이 아니에요. 실제로 보상되는지는 보험사가 정해요. 이 폰에만 저장돼요."),
+    COVER_ITEMS.map(([k, label]) => {
+      const sel = h("select", { id: "cv-" + k, "aria-label": label },
+        Object.entries(COVER_STATES).map(([v, t]) => h("option", { value: v }, t)));
+      sel.value = (p.cover && p.cover[k]) || "";
+      coverSel[k] = sel;
+      return h("div", {}, h("label", { for: "cv-" + k }, label), sel);
+    }),
+    h("div", {}, h("label", { for: "p-period" }, "보험 기간 (선택)"), periodInput));
   const save = () => {
     const out = {};
     for (const [key] of profileFields()) out[key] = inputs[key].value.trim();
-    if (isKr()) out.home_state = loadProfile().home_state || "";   // keep what an English-edition user saved
+    if (isKr()) {
+      out.home_state = loadProfile().home_state || "";   // keep what an English-edition user saved
+      const cover = Object.fromEntries(COVER_ITEMS.map(([k]) => [k, coverSel[k].value]).filter(([, v]) => v));
+      if (Object.keys(cover).length) out.cover = cover;
+      out.period = periodInput.value.trim();
+    }
     store("profile", profileFilled(out) ? JSON.stringify(out) : null);
     if (out.claims_phone) store("insurer", out.claims_phone);
-    state.view = null; render();
+    state.view = isKr() ? "home" : null; render();
   };
   const clear = () => {
     if (!confirm(T("Delete the details saved on this device?"))) return;
     store("profile", null); store("insurer", null);
-    state.view = null; render();
+    state.view = isKr() ? "home" : null; render();
   };
   return [
     h("div", { class: "card" },
@@ -902,8 +1165,9 @@ function profileScreen() {
       h("p", { class: "muted" }, "Everything here stays on this device. It is never sent to the server. It appears in your summary so you can read it out or copy it."),
       insurerPicker((x) => { inputs.insurer.value = x.name; inputs.claims_phone.value = x.phone; }),
       profileFields().map(fieldEl)),
+    coverCard,
     h("button", { class: "btn primary", onclick: save }, "Save"),
-    h("button", { class: "btn", onclick: () => { state.view = null; render(); } }, "Back"),
+    h("button", { class: "btn", onclick: () => { state.view = isKr() ? "home" : null; render(); } }, "Back"),
     profileFilled(p) ? h("button", { class: "btn ghost", onclick: clear }, "Delete my saved info") : null,
     h("div", { class: "card" },
       h("h2", {}, "About this app"),
@@ -976,6 +1240,28 @@ function safetyScreen(d) {
   const values = ["yes", "no", "unsure"];   // the buttons come in this order in either language
   const send1 = (i) => act("safety-answer", { answer: values[i] });
   const [yes, no, unsure] = d.prompt.options;
+  if (isKr()) {
+    // the mockup's answer cards: a big white card with a round mark, worded for the question that is asked
+    const danger = answered === 0;
+    const labels = danger ? ["네, 있어요", "아니요, 없어요", "잘 모르겠어요"] : ["네, 옮길 수 있어요", "아니요, 못 옮겨요", "잘 모르겠어요"];
+    const kinds = danger ? ["red", "green", "gray"] : ["green", "amber", "gray"];
+    const marks = danger ? ["!", "✓", "?"] : ["✓", "!", "?"];
+    return [
+      h("div", { class: "kr-question" },
+        h("p", { class: "kicker" }, `안전 확인 ${Math.min(answered + 1, total)}/${total}`),
+        h("h1", { class: "q" }, d.prompt.text),
+        h("p", { class: "sub" }, "말로 답해도 돼요."),
+        h("div", { class: "stack", style: "margin-top:6px" },
+          labels.map((label, i) => h("button", { class: "ans", onclick: () => send1(i) },
+            h("span", { class: "ai " + kinds[i], "aria-hidden": "true" }, marks[i]), label))),
+        h("p", { class: "sub small" }, "모르면 위험한 쪽으로 보고 119 안내부터 해 드려요."),
+        micRow("Or just say it")),
+      h("details", { class: "card more" },
+        h("summary", {}, "Type your answer instead"),
+        h("label", { for: "free", style: "margin-top:8px" }, "In your own words"),
+        h("div", { class: "row" }, input, h("button", { class: "btn small primary", onclick: send }, "Send"))),
+    ];
+  }
   return [
     h("div", { class: "card question" },
       h("div", { class: "progress", "aria-hidden": "true" }, Array.from({ length: total }, (_, i) => h("span", { class: i <= Math.min(answered, total - 1) ? "on" : "" }))),
@@ -1127,6 +1413,9 @@ function guideScreen(d) {
     h("div", { class: "muted", style: "margin-top:8px" }, "Source: ",
       p.sources.flatMap((s, i) => [i ? "; " : "", h("a", { href: s.url, target: "_blank", rel: "noopener noreferrer" }, s.title), `, ${s.version}`])),
     p.state_disclaimer ? h("div", { class: "banner warn", style: "margin-top:8px" }, icon("alert", "sm"), h("div", {}, p.state_disclaimer)) : null,
+    // the highway note names a call center; one tap dials it (towing range and cost are asked once connected)
+    isKr() && p.text && p.text.includes("1588-2504")
+      ? h("a", { class: "btn", style: "margin-top:8px", href: "tel:15882504" }, icon("phone"), "한국도로공사서비스 1588-2504") : null,
   ] : [];
   const stateName = { FL: "Florida", NY: "New York" }[p.state_choice] || "";
   return [
@@ -1215,7 +1504,9 @@ function hubScreen(d) {
       h("h2", {}, icon("check"), "Core photos are done"),
       h("p", { class: "lead" }, d.prompt.text),
       h("div", { class: "stack" },
-        h("button", { class: "btn primary", onclick: () => act("goto", { target: "summary" }) }, "Create summary"),
+        isKr() ? h("button", { class: "btn primary big", onclick: openWatch }, icon("ear"), "상대방과 대화 시작") : null,
+        isKr() ? h("button", { class: "btn", onclick: openAsk }, "질문하기") : null,
+        h("button", { class: "btn" + (isKr() ? "" : " primary"), onclick: () => act("goto", { target: "summary" }) }, isKr() ? "마무리하기" : "Create summary"),
         extraLeft > 0 ? h("button", { class: "btn", onclick: () => act("goto", { target: "photos" }) }, `Take more photos (${extraLeft} left)`) : null,
         h("button", { class: "btn", onclick: () => act("goto", { target: "info" }) }, "Add details"),
         micRow())),
@@ -1301,8 +1592,7 @@ function summaryScreen(d) {
     }
   });
 
-  return [
-    leaveCard(s),
+  const fullCards = [
     h("div", { class: "card" },
       h("h2", {}, "Claim summary"),
       h("p", { class: "muted" }, "Every item shows its source. 'AI observation' items are for reference only and are not verified."),
@@ -1321,14 +1611,58 @@ function summaryScreen(d) {
       h("p", { class: "muted" }, "Entered by you and kept on this device. Not part of the server summary above, but included when you copy it."),
       profileRows(prof).map(([label, value]) => h("div", { class: "sum-item" },
         h("span", { class: "lab" }, label), value, h("span", { class: "badge user_statement" }, SOURCE_LABEL.user_statement)))) : null,
-    h("div", { class: "card stack" }, copyBtn,
-      insurerPicker((x) => { phone.value = x.phone; syncCall(); call.replaceChildren(icon("phone"), x.name + "에 전화"); }),
-      phone, call),
-    nextStepsCard(s),
+  ];
+  const dial = h("div", { class: "card stack" },
+    insurerPicker((x) => { phone.value = x.phone; syncCall(); call.replaceChildren(icon("phone"), x.name + "에 전화"); }),
+    phone, call);
+  const tail = [
     h("button", { class: "btn", onclick: () => act("goto", { target: "hub" }) }, "Add more (photos or details)"),
     h("button", { class: "btn", onclick: restart }, "Start a new accident"),
     cleanupCard(s),
   ];
+  if (!isKr()) {
+    return [leaveCard(s), ...fullCards, h("div", { class: "card stack" }, copyBtn, dial), callCard(s), coverageCard(s),
+      myInsuranceCard(s, prof), nextStepsCard(s), uninsuredCard(s), followupCard(s), ...tail];
+  }
+  // Korea edition, three screens as in the mockup: check before leaving -> what to tell the insurer -> the whole record
+  const id = d.session.id;
+  const view = state.sumView && state.sumView.sid === id ? state.sumView.view : "leave";
+  const go = (v) => () => { state.sumView = { sid: id, view: v }; render(); };
+  if (view === "call") {
+    return [
+      callCard(s), dial, contactCard(s), coverageCard(s), myInsuranceCard(s, prof),
+      h("button", { class: "btn", onclick: go("leave") }, "떠나기 전 확인으로"),
+      h("button", { class: "btn", onclick: go("full") }, "전체 기록 보기"),
+    ];
+  }
+  if (view === "full") {
+    return [
+      ...fullCards, h("div", { class: "card stack" }, copyBtn), nextStepsCard(s), uninsuredCard(s), followupCard(s),
+      h("button", { class: "btn", onclick: go("call") }, "보험사에 말할 내용으로"), ...tail,
+    ];
+  }
+  return [
+    leaveCard(s),
+    h("button", { class: "btn primary big", onclick: go("call") }, icon("phone"), "보험사에 말할 내용"),
+    h("button", { class: "btn", onclick: go("full") }, "전체 기록 보기"),
+  ];
+}
+
+// Korea edition: what happened on the call, as the user heard it (pressing call or hanging up is not a claim filed).
+function contactCard(s) {
+  const c = s.contact;
+  if (!c) return null;
+  const number = h("input", { type: "text", id: "claim-no", placeholder: "접수번호", value: c.number, maxlength: "40", autocomplete: "off" });
+  const agent = h("input", { type: "text", id: "claim-agent", placeholder: "담당자 이름·연락처", value: c.agent, maxlength: "40", autocomplete: "off" });
+  number.addEventListener("change", () => record("contact", { number: number.value }));
+  agent.addEventListener("change", () => record("contact", { agent: agent.value }));
+  return h("div", { class: "card stack" },
+    h("h2", {}, c.title),
+    h("p", { class: "muted" }, c.note),
+    h("div", { class: "opts" }, Object.entries(c.states).map(([value, label]) =>
+      h("button", { class: "opt", "aria-pressed": String(c.state === value), onclick: () => record("contact", { state: value }) }, label))),
+    number, agent,
+    c.warning ? h("div", { class: "banner warn" }, icon("alert", "sm"), h("div", {}, c.warning)) : null);
 }
 
 // Korea edition: what to check before leaving (only a reminder), what comes next, and how to clear the record.
@@ -1340,6 +1674,76 @@ function leaveCard(s) {
     h("h2", {}, icon("alert"), lead),
     h("ul", { class: "plain" }, rest.map((line) => h("li", {}, line))),
     h("p", { class: "muted" }, "알림일 뿐이에요. 이 앱은 떠나는 것을 막지 않아요."));
+}
+
+// Korea edition, insurance hand-over. The user records these by hand; the screen redraws in place (no "Working…" screen).
+async function record(path, json) {
+  const y = window.scrollY;
+  try { state.data = await post(`/api/sessions/${sid()}/${path}`, json); } catch (e) { state.error = e.message; }
+  render(); window.scrollTo(0, y);
+}
+
+function choiceRow(path, row, labels) {
+  return h("div", { class: "choice" }, h("div", {}, row.label),
+    h("div", { class: "opts" }, Object.entries(labels).map(([value, text]) =>
+      h("button", { class: "opt", "aria-pressed": String(row.state === value), onclick: () => record(path, { item: row.id, state: value }) }, text))));
+}
+
+function callCard(s) {
+  if (!s.call_card || !s.call_card.length) return null;
+  const text = s.call_card.join(" ");
+  const copy = h("button", { class: "btn small" }, icon("copy"), "통화 내용 복사");
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(text); copy.textContent = "복사했어요 ✓"; } catch { copy.textContent = "복사하지 못했어요"; }
+  });
+  return h("div", { class: "card stack" },
+    h("h2", {}, s.titles.call),
+    h("p", { class: "muted" }, s.titles.call_note),
+    h("ol", { class: "call-card" }, s.call_card.map((line) => h("li", {}, line))),
+    copy);
+}
+
+function coverageCard(s) {
+  if (!s.coverage_rows || !s.coverage_rows.length) return null;
+  const states = { unknown: "아직 안 함", asked: "물어봤어요", confirmed: "확인했어요" };
+  const yesno = { yes: "예", no: "아니요", unknown: "모름" };
+  return h("div", { class: "card" },
+    h("h2", {}, s.titles.coverage),
+    h("p", { class: "muted" }, s.titles.coverage_note),
+    h("h3", {}, s.titles.hit),
+    s.hit_rows.map((r) => choiceRow("hit", r, yesno)),
+    s.coverage_rows.map((r) => choiceRow("coverage", r, states)));
+}
+
+// What the user wrote in My info (device only), next to what to ask the insurer. It never says what is covered.
+function myInsuranceCard(s, prof) {
+  if (!isKr() || !(s.coverage_rows || []).length) return null;
+  const rows = coverRows(prof);
+  return h("div", { class: "card stack" },
+    h("h2", {}, "보험사에 물어볼 것"),
+    rows.length ? h("div", {}, h("p", { class: "muted" }, "내가 기재한 내용이에요. 보험사가 확인한 것이 아니에요."),
+      rows.map(([label, value]) => h("div", { class: "sum-item" }, h("span", { class: "lab" }, label), value))) : null,
+    h("ul", { class: "plain" }, askInsurerLines(s, prof).map((l) => h("li", {}, l))),
+    rows.length ? null : h("p", { class: "muted" }, "내 정보에서 '보험 확인 카드'를 채워 두면 여기에 함께 보여요."));
+}
+
+function uninsuredCard(s) {
+  if (!s.uninsured) return null;
+  return h("details", { class: "card more" },
+    h("summary", {}, s.uninsured.title),
+    h("ul", { class: "plain" }, s.uninsured.lines.map((l) => h("li", {}, l))),
+    h("p", { class: "muted" }, "출처: ", h("a", { href: s.uninsured.source.url, target: "_blank", rel: "noopener noreferrer" }, s.uninsured.source.title)));
+}
+
+function followupCard(s) {
+  if (!s.titles || !s.titles.followup) return null;
+  const box = h("textarea", { id: "followup", rows: "3", maxlength: "300", placeholder: "예: 오늘 아침부터 목이 아프다고 했어요" });
+  const add = h("button", { class: "btn small", onclick: () => { const v = box.value.trim(); if (v) record("followup", { text: v }); } }, "덧붙이기");
+  return h("div", { class: "card stack" },
+    h("h2", {}, s.titles.followup),
+    h("p", { class: "muted" }, s.titles.followup_note),
+    s.followups.map((f) => h("div", { class: "sum-item" }, h("span", { class: "lab" }, f.time), f.text)),
+    box, add);
 }
 
 function nextStepsCard(s) {
@@ -1388,7 +1792,9 @@ function render() {
       h("div", {}, "Test mode: spoken answers are simulated (?fakespeech). Remove it from the address to use the real microphone.")));
   }
   if (state.error) parts.push(h("div", { class: "banner error", role: "alert" }, state.error));
-  if (state.view === "profile") {
+  if (isKr() && KR_SCREENS[state.view]) {
+    parts.push(...[KR_SCREENS[state.view]()].flat(2));
+  } else if (state.view === "profile") {
     parts.push(...profileScreen());
   } else if (state.view === "ask") {
     parts.push(...askScreen());
@@ -1402,7 +1808,12 @@ function render() {
     // While working, show a progress card on top and disable the buttons to block input.
     parts.unshift(busyCard());
   }
+  if (isKr() && !state.view && state.data && ["safety", "emergency", "guide", "photos", "hub"].includes(state.data.session.stage)) parts.push(voiceBar());
+  if (isKr() && KR_TAB_VIEWS.includes(state.view)) parts.push(tabsBar());
+  saveCurrentRecord();
+  applyCallButtons();
   $app.replaceChildren(...parts.filter(Boolean));
+  updateVoiceBar();
   if (state.busy) $app.querySelectorAll("button, input, textarea").forEach((el) => { el.disabled = true; });
   if (!state.view) maybeSpeak();
   window.scrollTo({ top: 0 });

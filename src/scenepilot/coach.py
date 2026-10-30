@@ -60,6 +60,10 @@ Risk ids:
 person calls the police or the insurer ("if you call the police I won't let it go").
 - "drunk": signs of drinking (smell of alcohol, slurred speech, says they drank).
 - "pain": someone says they are fine, or mentions pain or dizziness.
+- "coverage": someone says they already filed or reported an insurance claim ("I reported it to my insurer").
+- "refuse": someone says an insurer or mutual-aid association will not accept or process the claim.
+- "uninsured": someone says they have no insurance.
+- "tow": someone says they will call a tow truck, or that towing is free.
 Use [] when none is clearly present. Never guess.
 
 "heated": true only when the words themselves are angry (shouting, insults, accusations).
@@ -152,7 +156,8 @@ def decide(s: sm.Session, reading: ModelReading, elapsed_s: int) -> CoachResult:
         for hint_id, info_field in kr.COACH_ASK_FIELDS.items():
             if info_field not in s.info:
                 ordered.append((hint_id, kr.COACH_HINTS[hint_id]))
-    if reading.advice:
+    # For the insurance situations our fixed reminder is more exact than a free sentence, so the free one is skipped.
+    if reading.advice and not any(i in ("coverage", "refuse", "uninsured", "tow") for i, _ in ordered):
         # The model's own sentence, already vetted. A situation the code treats as urgent still gets its fixed reminder first.
         urgent = [(i, h) for i, h in ordered if i in ("hostile", "drunk", "fault")][:1]
         # The free sentence is skipped when it only repeats the same emergency number the fixed reminder already gave.
