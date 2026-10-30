@@ -117,6 +117,10 @@ class Session(BaseModel):
     info: dict[str, InfoValue] = Field(default_factory=dict)
     questions_asked: int = 0  # free questions put to the helper (capped per session)
     coach_calls: int = 0  # live-coaching requests (capped per session)
+    hit: dict[str, str] = Field(default_factory=dict)        # Korea edition: what was hit (kr.HIT_ITEMS -> yes/no/unknown)
+    coverage: dict[str, str] = Field(default_factory=dict)   # Korea edition: what has been reported (kr.COVERAGE_ITEMS -> state)
+    followups: list[dict] = Field(default_factory=list)      # Korea edition: later notes, each {"time", "text"}
+    contact: dict[str, str] = Field(default_factory=dict)    # Korea edition: after the call to the insurer {"state", "number", "agent"}
 
 
 # ---------- Creation and consent ----------
@@ -518,6 +522,13 @@ class Summary(BaseModel):
     leave_check: list[str] = Field(default_factory=list)   # Korea edition: what is still missing before leaving (warning only)
     next_steps: list[str] = Field(default_factory=list)    # Korea edition: what to do after the scene
     cleanup: str | None = None                             # Korea edition: advice to clear the other driver's details
+    call_card: list[str] = Field(default_factory=list)     # Korea edition: what to say to the insurer, built from the record
+    hit_rows: list[dict] = Field(default_factory=list)     # Korea edition: [{"id","label","state","state_label"}]
+    coverage_rows: list[dict] = Field(default_factory=list)
+    followups: list[dict] = Field(default_factory=list)    # Korea edition: [{"time","text"}]
+    contact: dict | None = None                            # Korea edition: what the user recorded after calling the insurer
+    uninsured: dict | None = None                          # Korea edition: what to do if the other side has no insurance or fled
+    titles: dict[str, str] = Field(default_factory=dict)   # Korea edition: headings of the cards above
 
 
 _STATE_VIA_NOTE = {
@@ -626,7 +637,95 @@ def build_summary(s: Session) -> Summary:
     return Summary(
         sections=sections, missing=missing, disclaimer=kr.DISCLAIMER if ko else DISCLAIMER, country=s.country,
         leave_check=leave_check(s), next_steps=list(kr.NEXT_STEPS) if ko else [], cleanup=kr.CLEANUP if ko else None,
+        call_card=call_card(s), hit_rows=_rows(s.hit, kr.HIT_ITEMS, kr.HIT_STATES, "unknown") if ko else [],
+        coverage_rows=_rows(s.coverage, kr.COVERAGE_ITEMS, kr.COVERAGE_STATES, "unknown") if ko else [],
+        followups=list(s.followups) if ko else [],
+        contact=_contact_view(s) if ko else None,
+        uninsured={"title": kr.UNINSURED_TITLE, "lines": list(kr.UNINSURED), "source": kr.UNINSURED_SOURCE} if ko else None,
+        titles={"coverage": kr.COVERAGE_TITLE, "coverage_note": kr.COVERAGE_NOTE, "hit": kr.HIT_TITLE, "call": kr.CALL_CARD_TITLE,
+                "call_note": kr.CALL_CARD_NOTE, "followup": kr.FOLLOWUP_TITLE, "followup_note": kr.FOLLOWUP_NOTE} if ko else {},
     )
+
+
+def _rows(chosen: dict[str, str], items: dict[str, str], states_: dict[str, str], default: str) -> list[dict]:
+    return [{"id": i, "label": label, "state": chosen.get(i, default), "state_label": states_[chosen.get(i, default)]}
+            for i, label in items.items()]
+
+
+def _contact_view(s: Session) -> dict:
+    state = s.contact.get("state", "before")
+    # someone is said to be hurt but the injury claim was never confirmed: the one thing the call record must not let slide
+    warn = s.hit.get("person") == "yes" and s.coverage.get("injury_claim") != "confirmed"
+    return {"state": state, "state_label": kr.CONTACT_STATES[state], "states": kr.CONTACT_STATES, "title": kr.CONTACT_TITLE,
+            "note": kr.CONTACT_NOTE, "number": s.contact.get("number", ""), "agent": s.contact.get("agent", ""),
+            "warning": kr.CONTACT_WARNING if warn else None}
+
+
+def set_contact(s: Session, state: str | None = None, number: str | None = None, agent: str | None = None) -> None:
+    """Korea edition: what happened on the call to the insurer, as the user heard it. Pressing call or ending a call changes nothing."""
+    _require(s, Stage.SUMMARY, Stage.HUB)
+    if not kr.is_kr(s.country):
+        raise ValueError("Only the Korea edition keeps a call record.")
+    if state is not None:
+        if state not in kr.CONTACT_STATES:
+            raise ValueError("Unknown state.")
+        s.contact["state"] = state
+    for key, value in (("number", number), ("agent", agent)):
+        if value is not None:
+            value = " ".join(value.split())
+            if len(value) > kr.CONTACT_FIELD_CHARS:
+                raise ValueError("Too long.")
+            s.contact[key] = value
+
+
+def set_hit(s: Session, item: str, state: str) -> None:
+    """Korea edition: what the user says was hit. A plain record; nothing is decided from it."""
+    _require(s, Stage.SUMMARY, Stage.HUB)
+    if not kr.is_kr(s.country) or item not in kr.HIT_ITEMS or state not in kr.HIT_STATES:
+        raise ValueError("Unknown item or state.")
+    s.hit[item] = state
+
+
+def set_coverage(s: Session, item: str, state: str) -> None:
+    """Korea edition: what the user has reported or confirmed with an insurer. Recorded by hand, never inferred."""
+    _require(s, Stage.SUMMARY, Stage.HUB)
+    if not kr.is_kr(s.country) or item not in kr.COVERAGE_ITEMS or state not in kr.COVERAGE_STATES:
+        raise ValueError("Unknown item or state.")
+    s.coverage[item] = state
+
+
+def add_followup(s: Session, text: str) -> None:
+    """Korea edition: something learned after the scene (late pain, more damage, a refusal). The first record is kept as it is."""
+    _require(s, Stage.SUMMARY)
+    text = " ".join(text.split())
+    if not kr.is_kr(s.country):
+        raise ValueError("Only the Korea edition keeps later notes.")
+    if not text or len(text) > kr.FOLLOWUP_CHARS or len(s.followups) >= kr.FOLLOWUP_MAX:
+        raise ValueError("The note is empty, too long, or there are too many notes.")
+    when = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M KST")
+    s.followups.append({"time": when, "text": text})
+
+
+def call_card(s: Session) -> list[str]:
+    """Korea edition: sentences the user can read out to the insurer, filled only from what the record holds."""
+    if not kr.is_kr(s.country):
+        return []
+    kst = timezone(timedelta(hours=9))
+    out = [f"사고 시간은 {s.created_at.astimezone(kst).strftime('%H시 %M분')}경입니다."]
+    hit = [kr.HIT_ITEMS[i].split(" (")[0] for i, v in s.hit.items() if v == "yes" and i in kr.HIT_ITEMS]
+    out.append(f"부딪힌 대상은 {', '.join(hit)}입니다." if hit else "부딪힌 대상은 아직 확인하지 못했습니다.")
+    danger = s.safety_answers.get("danger")
+    out.append({Answer.YES: "다친 사람이나 위험 신호가 있다고 답했습니다.", Answer.NO: "현재 다친 사람은 없다고 답했습니다."}
+               .get(danger, "다친 사람이 있는지는 확인하지 못했습니다."))
+    taken = sum(1 for sl in s.slots if sl.status is ItemStatus.CAPTURED)
+    out.append(f"현장 사진은 {taken}장 찍었고, 사진 분석은 참고용입니다." if taken else "현장 사진은 아직 찍지 못했습니다.")
+    known = [(label, s.info[f].value) for f, label in (("other_plate", "상대 차량번호"), ("other_insurance", "상대 보험사"))
+             if f in s.info and s.info[f].confirmed]
+    out.append(" ".join(f"{label}는 {value}입니다." for label, value in known) if known else "상대방 정보는 아직 확인하지 못했습니다.")
+    movable = s.safety_answers.get("movable")
+    out.append({Answer.NO: "차량 이동 지원이 필요할 수 있습니다.", Answer.YES: "차량은 직접 이동할 수 있다고 답했습니다."}
+               .get(movable, "차량 이동 지원이 필요한지는 모릅니다."))
+    return out + list(kr.CALL_CARD_END)
 
 
 def leave_check(s: Session) -> list[str]:
@@ -660,6 +759,28 @@ def render_summary_text(summary: Summary) -> str:
     lines.append(f"{len(summary.sections) + 1}. {w['unconfirmed_section']}")
     lines.extend(f"  - {m}" for m in summary.missing) if summary.missing else lines.append(f"  - {w['none']}")
     lines.append("")
-    lines.append(f"{len(summary.sections) + 2}. {w['notice']}")
+    extra = len(summary.sections) + 2
+    if summary.coverage_rows:   # Korea edition: what the user recorded about reporting to the insurers
+        lines.append(f"{extra}. {kr.COVERAGE_TITLE}")
+        lines.extend(f"  - {r['label']}: {r['state_label']}" for r in summary.coverage_rows)
+        lines.append(f"  - {kr.HIT_TITLE}: " + ", ".join(f"{r['label'].split(' (')[0]} {r['state_label']}" for r in summary.hit_rows))
+        lines.append("")
+        extra += 1
+    if summary.contact:
+        c = summary.contact
+        lines.append(f"{extra}. {kr.CONTACT_TITLE}")
+        lines.append(f"  - 연락 상태: {c['state_label']}")
+        if c["number"]:
+            lines.append(f"  - 접수번호: {c['number']} [{labels[Source.USER_STATEMENT]}]")
+        if c["agent"]:
+            lines.append(f"  - 담당자: {c['agent']} [{labels[Source.USER_STATEMENT]}]")
+        lines.append("")
+        extra += 1
+    if summary.followups:
+        lines.append(f"{extra}. {kr.FOLLOWUP_TITLE}")
+        lines.extend(f"  - {f['time']}: {f['text']} [{labels[Source.USER_STATEMENT]}]" for f in summary.followups)
+        lines.append("")
+        extra += 1
+    lines.append(f"{extra}. {w['notice']}")
     lines.append(f"  {summary.disclaimer}")
     return "\n".join(lines)

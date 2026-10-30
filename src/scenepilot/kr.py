@@ -110,10 +110,50 @@ NEXT_STEPS = (
     "경찰에 신고했다면 신고한 경찰서와 접수 정보를 적어 두세요.",
 )
 CLEANUP_TITLE = "기록 정리"
-CLEANUP = ("사고 처리가 끝나면 받은 상대방의 이름, 연락처, 사진은 필요한 곳에 전달한 뒤 지우세요. "
+CLEANUP = ("받은 상대방의 이름, 연락처, 사진은 보험 처리에 필요한 동안만 보관하고, 필요가 없어지면 지우세요. 보관 기간은 직접 정하세요. "
            "이 앱에 남은 이번 사고 기록은 아래 버튼으로 지울 수 있어요. 요약을 복사해 둔 곳과 내 정보(이 폰에 저장)는 따로 지워야 해요.")
 CLEANUP_BUTTON = "이 사고 기록 지우기"
 CLEANUP_CONFIRM = "이 사고의 사진 분석 결과와 입력한 내용을 서버에서 지웁니다. 되돌릴 수 없어요. 지울까요?"
+
+# ---------- Insurance hand-over: what was hit, what has been reported, the call card, later notes ----------
+# The user records these by hand; the app never says what an insurer covers or will pay.
+HIT_ITEMS = {"vehicle": "상대 차량", "facility": "시설물 (가드레일, 담장 등)", "person": "사람 (보행자 등)"}
+HIT_STATES = {"yes": "예", "no": "아니요", "unknown": "모름"}
+COVERAGE_ITEMS = {
+    "my_insurer": "내 보험사에 사고를 알렸어요",
+    "other_insurer": "상대 보험사나 공제조합을 확인했어요",
+    "vehicle_claim": "차량 손해가 접수됐는지 확인했어요",
+    "injury_claim": "다친 분이 있다면 그 접수를 확인했어요",
+    "number": "접수번호와 담당자 연락 경로를 받았어요",
+}
+COVERAGE_STATES = {"unknown": "아직 안 함", "asked": "물어봤어요", "confirmed": "확인했어요 (내가 기록)"}
+COVERAGE_TITLE = "보험 접수 확인"
+COVERAGE_NOTE = ("직접 기록하는 표예요. 접수번호를 받았다고 해서 보상이 정해진 것은 아니에요. "
+                 "'차량만 접수했다'는 말은 다친 분 접수까지 끝났다는 뜻이 아니에요.")
+CONTACT_STATES = {"before": "연락 전", "trying": "연결 시도", "connected": "상담 연결", "told": "접수했다고 들음"}
+CONTACT_TITLE = "통화 후 기록"
+CONTACT_NOTE = "전화 버튼을 눌렀다고, 통화를 끝냈다고 접수가 끝난 것은 아니에요. 들은 대로만 기록하세요."
+CONTACT_WARNING = "다친 분이 있다고 했는데 그 접수는 아직 확인하지 못했어요. 보험사에 한 번 더 물어보세요."
+CONTACT_FIELD_CHARS = 40
+HIT_TITLE = "무엇과 부딪혔나요"
+CALL_CARD_TITLE = "보험사에 이렇게 말하세요"
+CALL_CARD_NOTE = "모르는 항목은 모른다고 말하세요. 이 앱은 원인을 판단하지 않아요."
+CALL_CARD_END = (
+    "제가 직접 확인한 사실만 말씀드립니다. 원인에 대한 판단은 하지 않았습니다.",
+    "필요한 접수 범위와 다음 절차를 안내해 주세요.",
+)
+UNINSURED_TITLE = "상대가 보험이 없다고 하거나 도망쳤다면"
+UNINSURED = (
+    "차량번호, 연락처, 현장 사진을 최대한 남기고 경찰에 신고하세요.",
+    "사람이 다쳤다면 진료를 먼저 받고, 내 보험사에 무보험차 상해 등 적용할 수 있는 경로를 물어보세요.",
+    "정부보장사업은 뺑소니나 무보험차로 다친 피해자를 돕는 제도예요. 차량 파손 같은 물적 피해만 있으면 대상이 아니에요.",
+    "내 차 수리는 내 보험에 자기차량손해가 있는지 보험사에 확인하세요.",
+)
+UNINSURED_SOURCE = {"title": "자동차손해배상진흥원 정부보장사업 보상안내", "url": "https://tacss.or.kr/majorproject/gep_03.jsp"}
+FOLLOWUP_TITLE = "나중에 알게 된 내용"
+FOLLOWUP_NOTE = "처음 기록은 그대로 두고, 나중에 알게 된 것을 시각과 함께 덧붙여요. 몸 상태는 의료진에게, 보험은 담당자에게 알리세요."
+FOLLOWUP_MAX = 20
+FOLLOWUP_CHARS = 300
 
 # Claims phone numbers of the big non-life insurers, so the user can pick theirs instead of typing it. Only the
 # main number printed by the Korea Non-life Insurance Association's car-insurance portal (or the insurer's own
@@ -136,8 +176,8 @@ INSURER_NOTE = "대표 번호예요. 가입한 보험사 앱이나 보험증권�
 # 합의 is blocked), so this common question gets a fixed answer written by us instead of a refusal.
 DEAL_QUESTION = re.compile(r"합의|현금|돈으로|계좌|각서|그냥 (?:끝|넘어)")
 DEAL_ANSWER = (
-    "현장에서 바로 정하지 않아도 돼요. 이 앱은 그런 결정에 대해 판단하지 않아요. "
-    "먼저 상대방의 이름, 연락처, 보험 정보를 주고받고 사진을 남기세요. 그다음 보험사에 알리고 상의하세요."
+    "현장에서 바로 정하지 않아도 돼요. 피해 상태와 보험 처리에 미치는 영향을 보험사에 먼저 확인한 뒤 결정하세요. "
+    "이 앱은 그런 결정에 대해 판단하지 않아요. 먼저 상대방의 이름, 연락처, 보험 정보를 주고받고 사진을 남기세요."
 )
 
 INFO_FIELDS = {
@@ -225,7 +265,7 @@ VISION_LANGUAGE = "Korean"
 # ---------- Live coaching by a model (see coach.py) ----------
 # The model never writes what is said. It only tells which situations it hears, and code picks one of these fixed,
 # pre-recorded sentences. The risk reminders reuse the conversation-watch wording below (same clips).
-COACH_RISK_ORDER = ("hostile", "drunk", "deal", "sign", "police", "leaving", "fault", "pain")
+COACH_RISK_ORDER = ("hostile", "drunk", "deal", "sign", "refuse", "uninsured", "tow", "coverage", "police", "leaving", "fault", "pain")
 COACH_HINTS = {
     "drunk": "상대가 술을 마신 것 같으면 대화를 멈추고 112에 신고하세요.",
     "tone": "천천히, 사실만 말하세요.",
@@ -263,4 +303,17 @@ WATCH_RULES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("pain", (
         "저는괜찮", "안다쳤", "목이아", "허리가아", "어깨가아", "머리가아", "목이뻐근",
     ), "통증은 나중에 나타나기도 해요. 병원 진료를 고려하세요."),
+    # insurance situations (the "접수" rules only remind; they never say what is covered)
+    ("coverage", (
+        "접수했어요", "접수했으니", "접수했는데", "접수했습니다", "보험접수했", "접수해놨", "접수완료",
+    ), "어떤 피해를 접수했는지 물어보세요. 차량 손해와 다친 분 접수를 각각 확인하세요."),
+    ("refuse", (
+        "접수안해", "접수못해", "접수는안", "접수안돼", "접수안되", "대인접수는안", "처리안해줘", "처리못해줘",
+    ), "거부한 내용을 기록하세요. 상대 보험사에 필요한 서류와 접수 절차를 문의하세요."),
+    ("uninsured", (
+        "보험이없", "보험없어", "보험없는", "무보험", "보험미가입", "보험안들",
+    ), "보험이 없다고 해도 차량번호와 연락처를 기록하세요. 내 보험사에 처리 방법을 물어보세요."),
+    ("tow", (
+        "견인무료", "견인불러", "견인차불렀", "견인차부르", "제가아는견인", "견인은제가", "견인제가",
+    ), "견인 업체와 목적지, 추가 비용을 먼저 확인하세요."),
 )

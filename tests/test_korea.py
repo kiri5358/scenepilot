@@ -276,7 +276,8 @@ def test_the_korean_rules_are_served_compact_and_each_has_a_clip_sentence():
     assert [x["hint"] for x in r["rules"]] == watch_hints.hints("KR")
     assert client.get("/api/watch-rules").json()["compact"] is False
     ids = [r.id for r in watch_hints.RULES_KR]
-    assert ids == [r.id for r in watch_hints.RULES]
+    english = [r.id for r in watch_hints.RULES]
+    assert ids[:len(english)] == english and ids[len(english):] == ["coverage", "refuse", "uninsured", "tow"]   # the Korean ones add insurance situations
 
 
 # ---------- Spoken clips ----------

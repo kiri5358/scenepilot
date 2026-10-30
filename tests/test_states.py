@@ -2,7 +2,7 @@ import re
 
 from scenepilot import states
 
-OFFICIAL_HOSTS = {"FL": ("leg.state.fl.us",), "NY": ("nysenate.gov",), "KR": ("law.go.kr", "ex.co.kr", "consumer.go.kr")}
+OFFICIAL_HOSTS = {"FL": ("leg.state.fl.us",), "NY": ("nysenate.gov",), "KR": ("law.go.kr", "ex.co.kr", "consumer.go.kr", "exservice.co.kr")}
 
 
 def test_demo_states_are_florida_and_new_york():
