@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // "Ask a question": type or say a question, read the answer. The server decides what may be answered (it only uses the app's
 // reviewed notes and steps and never judges fault, gives legal or medical advice, or estimates costs).
 import { h } from "../../ui/dom.js";
@@ -6,6 +7,9 @@ import { t } from "../../core/i18n.js";
 import { askQuestion, MAX_QUESTION_CHARS } from "../../flows/ask.js";
 import { commandTable, matchCommand } from "../../services/voice.js";
 import * as speaker from "../../services/speak.js";
+
+// Keep unsent input in memory across language changes and redraws, never in browser storage.
+const drafts = new Map();
 
 function answerCard(item) {
   return h("article", { class: "qa" },
@@ -25,12 +29,18 @@ function answerCard(item) {
 }
 
 export function askScreen(ctx) {
-  const { qa, busy } = ctx.state.get();
+  const { qa, busy } = displayState(ctx);
+  const sessionId = ctx.state.get().data.session.id;
+  for (const id of drafts.keys()) if (id !== sessionId) drafts.delete(id);
   const close = () => ctx.update({ overlay: null });
   const input = h("textarea", {
     id: "question", rows: "3", maxlength: String(MAX_QUESTION_CHARS), placeholder: t("ask.placeholder"), "aria-label": t("ask.label"),
-  });
-  const send = () => { const text = input.value.trim(); if (text) askQuestion(ctx, text); };
+    oninput: (event) => drafts.set(sessionId, event.target.value),
+  }, drafts.get(sessionId) || "");
+  const send = () => {
+    const original = input.value;
+    if (original.trim()) askQuestion(ctx, original, () => { if (drafts.get(sessionId) === original) drafts.delete(sessionId); });
+  };
   input.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } });
 
   return {

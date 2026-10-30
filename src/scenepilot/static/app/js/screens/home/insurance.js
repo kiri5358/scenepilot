@@ -2,7 +2,7 @@ import { h } from "../../ui/dom.js";
 import { icon } from "../../ui/icons.js";
 import { openSheet } from "../../ui/sheet.js";
 import { api } from "../../core/api.js";
-import { t } from "../../core/i18n.js";
+import { t, serverText } from "../../core/i18n.js";
 import { getProfile, getCoverage, saveInsurance, saveCoverage } from "../../core/store.js";
 import { PROFILE_FIELDS, COVERAGES, COVERAGE_VALUES, normalizeProfile, validPolicyDates, phoneHref, pickedClaimsPhone } from "../../core/insurance.js";
 
@@ -23,7 +23,7 @@ async function fillInsurers(select, inputs, source, note) {
     select.replaceChildren(h("option", { value: "" }, t("insurance.picker.choose")),
       ...insurers.map((item, i) => h("option", { value: String(i) }, item.name)));
     select.disabled = false;
-    note.textContent = data.note || t("insurance.picker.note");
+    note.textContent = serverText(data.note) || t("insurance.picker.note");
     let previousPhone = null;
     select.addEventListener("change", () => {
       const item = select.value === "" ? null : insurers[Number(select.value)];

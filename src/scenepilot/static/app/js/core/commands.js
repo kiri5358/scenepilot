@@ -2,10 +2,10 @@
 // appears in the sentence with spaces ignored, and a one-syllable phrase must be a word of its own.
 // The server-side tables (speech.js) cover emergency, guide and hub; these add what the new hub offers.
 export const HUB_COMMANDS = {
-  coach: ["대화", "상대방", "코칭", "이야기"],
-  photos: ["사진더", "더찍", "사진"],
-  finish: ["마무리", "요약", "끝"],
-  ask: ["질문", "물어볼", "궁금"],
+  coach: ["대화", "상대방", "코칭", "이야기", "talk", "coach", "conversation"],
+  photos: ["사진더", "더찍", "사진", "photos", "pictures"],
+  finish: ["마무리", "요약", "끝", "finish", "summary", "done"],
+  ask: ["질문", "물어볼", "궁금", "question", "ask"],
 };
 
 // ---------- Answering while the app is still reading ----------
@@ -13,7 +13,7 @@ export const HUB_COMMANDS = {
 // voice, so reading is cut short only for something that is surely an answer: a short sentence that starts with an answer
 // word (the long question itself never does) or a short spoken command.
 const compact = (text) => String(text).toLowerCase().replace(/[^가-힣a-z0-9]/g, "");
-const ANSWER_WORDS = ["네", "넵", "예", "응", "아니", "아뇨", "없어", "없습니다", "있어", "있습니다", "모르겠", "몰라", "잘모", "글쎄", "괜찮", "맞아", "그래"];
+const ANSWER_WORDS = ["네", "넵", "예", "응", "아니", "아뇨", "없어", "없습니다", "있어", "있습니다", "모르겠", "몰라", "잘모", "글쎄", "괜찮", "맞아", "그래", "yes", "no", "notsure", "idontknow", "ican", "icant"];
 export const QUICK_MAX_CHARS = 12;
 
 export function isQuickAnswer(text) {

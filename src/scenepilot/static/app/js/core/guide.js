@@ -34,11 +34,11 @@ export function guideState(prompt, item = 0) {
 // Which picture goes with a sentence of the list. The words stay the server's; this only chooses a drawing by the topic
 // of the sentence (the order of the tests matters: the first step may also say "계세요"). null: no picture for it.
 const PICTURE_TOPICS = [
-  ["hazard", /비상등|갓길/],
-  ["blackbox", /블랙박스/],
-  ["stay", /현장에\s*(계세요|머)/],
-  ["exchange", /이름|전화번호|연락처/],
-  ["insurer", /보험사에\s*(사고|접수)/],
+  ["hazard", /비상등|갓길|hazard lights|shoulder/i],
+  ["blackbox", /블랙박스|dashcam/i],
+  ["stay", /현장에\s*(계세요|머)|stay at the scene/i],
+  ["exchange", /이름|전화번호|연락처|exchange names/i],
+  ["insurer", /보험사에\s*(사고|접수)|report the accident to your insurer/i],
 ];
 export function pictureFor(text) {
   const hit = PICTURE_TOPICS.find(([, pattern]) => pattern.test(String(text)));

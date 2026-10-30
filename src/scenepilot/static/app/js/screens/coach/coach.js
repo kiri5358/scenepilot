@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // During the talk: one line from the coach, what to say, and what is still missing from the other driver.
 // The phone listens in the background (services/coach-session.js); this screen shows what it found.
 import { h } from "../../ui/dom.js";
@@ -51,7 +52,7 @@ function strip(status) {
 }
 
 export function coachScreen(ctx) {
-  const { data, coach, busy } = ctx.state.get();
+  const { data, coach, busy } = displayState(ctx);
   const rows = infoRows(data.session.info, data.checklist);
   return {
     appbar: "coach",

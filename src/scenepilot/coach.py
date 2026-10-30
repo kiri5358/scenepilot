@@ -106,12 +106,12 @@ class CoachResult:
     ok: bool = True                                       # False when the model could not be reached
 
 
-def _reading(content: str) -> ModelReading:
+def _reading(content: str, language: str = "ko") -> ModelReading:
     data = _extract_json(re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL))
     reading = ModelReading.model_validate(data)
     reading.risks = [r for r in reading.risks if r in RISK_IDS]   # only ids we know; anything else is dropped
     reading.heard = {k: v for k, v in reading.heard.items() if k in HEARD_FIELDS and isinstance(v, str)}
-    reading.advice = vet_advice(reading.advice)
+    reading.advice = vet_advice(reading.advice, language)
     return reading
 
 
@@ -119,14 +119,15 @@ _RISKY_ACTION = re.compile(r"서명|사인|도장|합의|동의|인정|입금|�
 _NEGATION = re.compile(r"마세요|말고|마시고|않|하지 |지 마|지는 마|전에는|전까지|먼저 .*(112|보험)")
 
 
-def vet_advice(text: str | None) -> str | None:
-    """The model's own sentence is spoken only if it passes the same guard as every other model text, is short, plain
-    Korean with no digits other than the two emergency numbers and no markup. Otherwise it is dropped (the fixed
+def vet_advice(text: str | None, language: str = "ko") -> str | None:
+    """The model's own sentence is spoken only if it passes the same guard as every other model text, is short, in the
+    requested language with no digits other than Korea's two emergency numbers and no markup. Otherwise it is dropped (the fixed
     reminders are used instead)."""
     if not isinstance(text, str):
         return None
     text = " ".join(text.split())
-    if not (4 <= len(text) <= MAX_ADVICE_CHARS) or not re.search(r"[가-힣]", text):
+    valid_script = bool(re.search(r"[a-zA-Z]", text)) and not re.search(r"[가-힣]", text) if language == "en" else bool(re.search(r"[가-힣]", text))
+    if not (4 <= len(text) <= MAX_ADVICE_CHARS) or not valid_script:
         return None
     if re.search(r"[*#`<>\[\]{}|_]|https?:", text):
         return None
@@ -134,6 +135,9 @@ def vet_advice(text: str | None) -> str | None:
         return None
     # Signing, agreeing, settling or paying may only be mentioned to say NOT to do it.
     if _RISKY_ACTION.search(text) and not _NEGATION.search(text):
+        return None
+    # These situations already have precise fixed reminders. Do not generate an English instruction to commit to them.
+    if language == "en" and re.search(r"\b(sign(?:ing)?|agree(?:ing)?|accept(?:ing)?|pay(?:ing)?|settl(?:e|ing)|transfer(?:ring)?)\b", text, re.I):
         return None
     return text if guard.is_safe(text) else None
 
@@ -184,7 +188,7 @@ def _missing_line(s: sm.Session) -> str:
 
 
 async def coach(
-    s: sm.Session, text: str, elapsed_s: int = 0, *, settings: Settings | None = None, client: AsyncOpenAI | None = None
+    s: sm.Session, text: str, elapsed_s: int = 0, *, settings: Settings | None = None, client: AsyncOpenAI | None = None, language: str = "ko"
 ) -> CoachResult:
     """Read a piece of the conversation and say what to do. Never raises: a failed call just returns nothing to say."""
     text = " ".join(text.split())[-MAX_TEXT_CHARS:]
@@ -195,8 +199,11 @@ async def coach(
         if not settings.api_key:
             return CoachResult(ok=False)
         client = AsyncOpenAI(base_url=settings.base_url, api_key=settings.api_key, timeout=settings.coach_timeout, max_retries=0)
+    prompt = SYSTEM_PROMPT
+    if language == "en":
+        prompt = prompt.replace("copied in Korean as spoken", "copied verbatim in the language spoken").replace("short, polite Korean sentences", "short, plain English sentences")
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": prompt},
         {"role": "user", "content": f"<notes>\n{_notes_text()}\n</notes>\n"
                                     f"<still_missing_about_other_driver>{_missing_line(s)}</still_missing_about_other_driver>\n"
                                     f"<transcript>\n{text}\n</transcript>"},
@@ -212,7 +219,7 @@ async def coach(
             resp = await client.chat.completions.create(
                 model=settings.coach_model, messages=messages, max_tokens=settings.coach_max_tokens, temperature=0,
             )
-        reading = _reading(resp.choices[0].message.content or "")
+        reading = _reading(resp.choices[0].message.content or "", language)
     except (ValueError, ValidationError, json.JSONDecodeError):
         return decide(s, ModelReading(), elapsed_s)   # unreadable answer: say nothing the model decided
     except Exception:  # noqa: BLE001 - coaching must never break the screen

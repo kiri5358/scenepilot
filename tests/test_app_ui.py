@@ -115,7 +115,9 @@ def test_new_ui_is_served_with_javascript_types():
         assert client.get(f"/static/app/i18n/{name}.json").status_code == 200
 
 
-def test_old_ui_is_untouched_and_still_the_front_page():
-    """The old index.html and app.js keep serving '/', the Android build and its tests."""
+def test_new_ui_is_the_front_page_and_legacy_files_remain_available():
+    """Both languages use the modular UI; legacy assets remain available to the Android build."""
     page = client.get("/")
-    assert page.status_code == 200 and "/static/app.js" in page.text and "/static/app/" not in page.text
+    assert page.status_code == 200 and "/static/app/js/main.js" in page.text
+    assert "/static/kr_home.js" not in page.text
+    assert client.get("/static/index.html").status_code == 200

@@ -72,8 +72,8 @@ export function infoRows(info, checklist) {
 
 // ---------- Choosing the words of the setup screen ----------
 export const SETUP_COMMANDS = {
-  start: ["대화시작", "시작", "코칭시작"],
-  notalk: ["싫어", "연락처만", "대화없이", "없이"],
+  start: ["대화시작", "시작", "코칭시작", "start", "begin"],
+  notalk: ["싫어", "연락처만", "대화없이", "없이", "no talk", "contact only"],
 };
 
 export const DEFAULT_COACH_PREFS = { mode: "screen", ai: true };   // mode: "screen" (screen + vibration) | "ear" (read aloud)

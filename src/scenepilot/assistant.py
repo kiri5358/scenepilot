@@ -272,26 +272,29 @@ def check_answer(text: str, notes_text: str) -> bool:
 
 # ---------- The question ----------
 
-async def ask(s, question: str, *, settings: Settings | None = None, client: AsyncOpenAI | None = None) -> AssistantAnswer:
+async def ask(s, question: str, *, settings: Settings | None = None, client: AsyncOpenAI | None = None, language: str | None = None) -> AssistantAnswer:
     question = " ".join(question.split())[:MAX_QUESTION_CHARS]
 
     ko = kr.is_kr(s.country)
-    safety_answer = kr.SAFETY_ANSWER if ko else SAFETY_ANSWER
-    fallback_answer = kr.FALLBACK_ANSWER if ko else FALLBACK_ANSWER
-    unavailable_answer = kr.UNAVAILABLE_ANSWER if ko else UNAVAILABLE_ANSWER
-    note = kr.NOTE if ko else NOTE
+    english_kr = ko and language == "en"
+    safety_answer = SAFETY_ANSWER.replace("911", "119") if english_kr else kr.SAFETY_ANSWER if ko else SAFETY_ANSWER
+    fallback_answer = kr.FALLBACK_ANSWER if ko and not english_kr else FALLBACK_ANSWER
+    unavailable_answer = kr.UNAVAILABLE_ANSWER if ko and not english_kr else UNAVAILABLE_ANSWER
+    note = kr.NOTE if ko and not english_kr else NOTE
 
     # 1. Rules first: danger words never reach the model.
     if danger_signals(question):
         if ko:
-            buttons = [CallButton(label=kr.CALL_AMBULANCE, number=kr.NUMBERS["ambulance"]),
-                       CallButton(label=kr.CALL_POLICE, number=kr.NUMBERS["police"])]
+            buttons = [CallButton(label="Call 119 (ambulance / fire)" if english_kr else kr.CALL_AMBULANCE, number=kr.NUMBERS["ambulance"]),
+                       CallButton(label="Call 112 (police)" if english_kr else kr.CALL_POLICE, number=kr.NUMBERS["police"])]
         else:
             buttons = [CallButton(label=f"Call {EMERGENCY_NUMBERS[s.country]['police']}", number=EMERGENCY_NUMBERS[s.country]["police"])]
         return AssistantAnswer(safety_answer, "safety", call_buttons=buttons, note=note)
 
     if ko and kr.DEAL_QUESTION.search(question):
-        return AssistantAnswer(kr.DEAL_ANSWER, "answer", note=note)
+        text = ("You do not have to decide at the scene. Ask your insurer about the damage and the effect on your claim first. "
+                "This app does not make that decision. Exchange contact and insurance details, and take photos first.") if english_kr else kr.DEAL_ANSWER
+        return AssistantAnswer(text, "answer", note=note)
 
     settings = settings or get_settings()
     if client is None:
@@ -299,7 +302,10 @@ async def ask(s, question: str, *, settings: Settings | None = None, client: Asy
             return AssistantAnswer(unavailable_answer, "unavailable", note=note)
         client = AsyncOpenAI(base_url=settings.base_url, api_key=settings.api_key, timeout=settings.request_timeout, max_retries=0)
 
-    messages: list[dict] = [{"role": "system", "content": kr.SYSTEM_PROMPT if ko else SYSTEM_PROMPT}, {"role": "user", "content": question}]
+    prompt = kr.SYSTEM_PROMPT if ko else SYSTEM_PROMPT
+    if english_kr:
+        prompt = prompt.replace("plain, polite Korean only (no English or other foreign words)", "plain English only")
+    messages: list[dict] = [{"role": "system", "content": prompt}, {"role": "user", "content": question}]
     tools = tools_for(s.country)
     used_sources: list[dict] = []
     tools_used: list[str] = []
@@ -314,15 +320,16 @@ async def ask(s, question: str, *, settings: Settings | None = None, client: Asy
             message = resp.choices[0].message
             if not message.tool_calls:
                 text = _clean(message.content or "")
-                if ko:
+                if ko and not english_kr:
                     text = tidy_korean(text)
-                if check_answer(text, notes_text):
+                if check_answer(text, notes_text) and not (english_kr and _HANGUL_TEXT.search(text)):
                     return AssistantAnswer(text, "answer", sources=used_sources, tools_used=tools_used, note=note)
                 if rewrites >= MAX_REWRITES:
                     return AssistantAnswer(fallback_answer, "fallback", tools_used=tools_used, note=note)
                 rewrites += 1
                 messages.append({"role": "assistant", "content": message.content or ""})
-                messages.append({"role": "user", "content": kr.REWRITE_REQUEST if ko else REWRITE_REQUEST})
+                rewrite = kr.REWRITE_REQUEST.replace("again in Korean", "again in English") if english_kr else kr.REWRITE_REQUEST if ko else REWRITE_REQUEST
+                messages.append({"role": "user", "content": rewrite})
                 continue
             messages.append({
                 "role": "assistant", "content": message.content or "",

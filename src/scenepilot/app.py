@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -56,7 +56,7 @@ MAX_SESSIONS = 500  # keep memory bounded on a public demo by dropping the oldes
 
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
+    return FileResponse(STATIC_DIR / "app" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 def _get(session_id: str) -> sm.Session:
@@ -103,12 +103,12 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str]:
     return data, mime
 
 
-async def _analyze(file: UploadFile, request: Request, country: str = "US"):
+async def _analyze(file: UploadFile, request: Request, country: str = "US", language: str | None = None):
     data, mime = await _read_image(file)
     ratelimit.enforce(request, "photo")  # after the free checks, right before the paid model call
     try:
         result = await analyze_photo(
-            data, mime, settings=get_settings(), language=kr.VISION_LANGUAGE if kr.is_kr(country) else "English")
+            data, mime, settings=get_settings(), language="English" if language == "en" else kr.VISION_LANGUAGE if kr.is_kr(country) else "English")
     except VisionError as e:
         raise HTTPException(502, str(e)) from e
     analysis, removed = sanitize_analysis(result.analysis)
@@ -142,11 +142,13 @@ class SafetyAnswer(BaseModel):
 
 class AskIn(BaseModel):
     question: Annotated[str, StringConstraints(min_length=1, max_length=assistant.MAX_QUESTION_CHARS)]
+    language: Literal["ko", "en"] | None = None
 
 
 class CoachIn(BaseModel):
     text: Annotated[str, StringConstraints(max_length=coach_module.MAX_TEXT_CHARS * 2)]
     elapsed_s: int = Field(default=0, ge=0, le=7200)  # seconds since the user switched coaching on
+    language: Literal["ko", "en"] | None = None
 
 
 class Skip(BaseModel):
@@ -232,7 +234,7 @@ async def ask_question(session_id: str, request: Request, body: AskIn) -> dict:
     if not danger_signals(body.question):  # a danger question gets the fixed 911 text and never reaches the model, so it is never limited
         ratelimit.enforce(request, "ask")
     s.questions_asked += 1
-    result = await assistant.ask(s, body.question)
+    result = await assistant.ask(s, body.question, **({"language": body.language} if body.language else {}))
     return {
         "answer": result.answer, "kind": result.kind, "sources": result.sources, "tools_used": result.tools_used,
         "call_buttons": [b.model_dump() for b in result.call_buttons], "note": result.note,
@@ -254,7 +256,7 @@ async def coach_endpoint(session_id: str, request: Request, body: CoachIn) -> di
     if len(" ".join(body.text.split())) >= coach_module.MIN_TEXT_CHARS:
         ratelimit.enforce(request, "coach")  # only calls that reach the model count
     s.coach_calls += 1
-    result = await coach_module.coach(s, body.text, body.elapsed_s)
+    result = await coach_module.coach(s, body.text, body.elapsed_s, **({"language": body.language} if body.language else {}))
     return {"ok": result.ok, "hints": result.hints, "suggested": result.suggested}
 
 
@@ -280,8 +282,8 @@ async def list_insurers(country: str = "US") -> dict:
 
 
 @app.get("/api/watch-rules")
-async def watch_rules(country: str = "US") -> dict:
-    return watch_hints.public_rules(country)
+async def watch_rules(country: str = "US", language: Literal["ko", "en"] | None = None) -> dict:
+    return watch_hints.public_rules(country, language)
 
 
 @app.post("/api/sessions/{session_id}/state")
@@ -299,11 +301,11 @@ async def guide(session_id: str, body: GuideIn) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/photo")
-async def submit_photo(session_id: str, request: Request, file: UploadFile = File(...)) -> dict:
+async def submit_photo(session_id: str, request: Request, file: UploadFile = File(...), language: Literal["ko", "en"] | None = None) -> dict:
     s = _get(session_id)
     if s.stage is not sm.Stage.PHOTOS:  # check the stage before calling the model
         raise HTTPException(409, f"Photos are not accepted in the current stage ({s.stage.value}).")
-    analysis, removed, result = await _analyze(file, request, s.country)
+    analysis, removed, result = await _analyze(file, request, s.country, **({"language": language} if language else {}))
     verdict = _call(sm.submit_photo, s, analysis)
     return _view(
         s,

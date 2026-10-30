@@ -76,7 +76,7 @@
   "consent.cancel": "취소",
   "settings.title": "설정",
   "settings.lang": "언어",
-  "settings.langNote": "서버가 보내는 안내 문장은 한국어로 보여요.",
+  "settings.langNote": "화면과 음성 언어를 바꿔요. 한국 사고 안내와 119·112는 유지돼요. 이전에 입력하거나 생성한 내용은 원문으로 남아요.",
   "settings.sos": "119·112 버튼",
   "settings.sos.always": "항상",
   "settings.sos.accident": "사고 중에만",

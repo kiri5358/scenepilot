@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 import { h } from "../../ui/dom.js";
 import { chip } from "../../ui/chip.js";
 import { t } from "../../core/i18n.js";
@@ -9,7 +10,7 @@ import { editScene, taskList } from "./wrap-shared.js";
 import { handoverChecks, uninsuredCard, followupPanel } from "../../ui/handover.js";
 
 export function leaveScreen(ctx) {
-  const { data, busy } = ctx.state.get();
+  const { data, busy } = displayState(ctx);
   const draft = getWrapDraft(data.session.id);
   const rows = infoRows(data.session.info, data.checklist).map((row) => row.labelKey === "coach.row.photoChip"
     ? { ...row, kind: "unknown", labelKey: "wrap.platePhoto" } : row);

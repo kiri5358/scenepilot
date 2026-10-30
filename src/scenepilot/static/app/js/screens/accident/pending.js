@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // Stand-in for an accident step whose new screen is not built yet (the info and summary steps). It shows exactly what the
 // server sent (server text goes in as text only) and lets the person go back to the choices.
 import { h } from "../../ui/dom.js";
@@ -5,7 +6,7 @@ import { t } from "../../core/i18n.js";
 import { act } from "../../flows/stage.js";
 
 export function pendingScreen(ctx) {
-  const { data } = ctx.state.get();
+  const { data } = displayState(ctx);
   const stage = data.session.stage;
   const prompt = data.prompt || {};
   const canGoBack = stage === "info" || stage === "summary";

@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // "I don't want to talk": swap contact and insurer only. The talk may be skipped, the exchange of details may not
 // (giving them is a duty, Road Traffic Act article 54), so this screen walks through just that.
 import { h } from "../../ui/dom.js";
@@ -14,7 +15,7 @@ function step(number, title, ...rest) {
 }
 
 function detailField(ctx, { id, labelKey, placeholderKey, field, type }) {
-  const { data } = ctx.state.get();
+  const { data } = displayState(ctx);
   const entry = data.session.info && data.session.info[field];
   const input = h("input", { type, id, placeholder: t(placeholderKey), value: entry ? entry.value : "", autocomplete: "off" });
   const save = () => { if (input.value.trim() && (!entry || input.value.trim() !== entry.value)) setInfoValue(ctx, field, input.value); };
@@ -24,7 +25,7 @@ function detailField(ctx, { id, labelKey, placeholderKey, field, type }) {
 }
 
 export function noTalkScreen(ctx) {
-  const { data, noTalkRefused } = ctx.state.get();
+  const { data, noTalkRefused } = displayState(ctx);
   const photo = data.checklist.some((slot) => slot.id === "other_vehicle" && slot.status === "captured");
   return {
     body: [

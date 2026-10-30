@@ -4,6 +4,7 @@
 // the text lives only in the request. A reminder is shown (and the phone vibrates), or, in "ear" mode, read aloud.
 import { api, post, sessionPath } from "../core/api.js";
 import { planHint } from "../core/coach.js";
+import { getLang } from "../core/i18n.js";
 import * as speaker from "./speak.js";
 import { vibrate } from "./vibrate.js";
 import { keepAwake, release } from "./wakelock.js";
@@ -14,6 +15,7 @@ const MAX_HEARD_CHARS = 70;
 
 let handle = null;
 let rules = null;
+let rulesLanguage = null;
 let protocol = {};
 let cooldown = 30;
 let poller = null;
@@ -33,9 +35,11 @@ function setCoach(patch) {
 }
 
 export async function loadProtocol() {
-  if (rules) return protocol;
-  const r = await api("/api/watch-rules?country=KR");
+  const language = getLang();
+  if (rules && rulesLanguage === language) return protocol;
+  const r = await api(`/api/watch-rules?country=KR${language === "en" ? "&language=en" : ""}`);
   rules = r.rules || [];
+  rulesLanguage = language;
   protocol = r;
   cooldown = r.cooldown_seconds || 30;
   return protocol;
@@ -49,7 +53,7 @@ async function sendToCoach(run, text, seconds) {
   const data = ctx.state.get().data;
   let result;
   try {
-    result = await post(sessionPath(data.session.id, "coach"), { text, elapsed_s: seconds });
+    result = await post(sessionPath(data.session.id, "coach"), { text, elapsed_s: seconds, language: getLang() });
   } catch {
     if (activeRun === run) setCoach({ aiError: true });
     return { hints: [] };

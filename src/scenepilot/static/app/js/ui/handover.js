@@ -1,3 +1,4 @@
+import { displayView, displayCallLine } from "../core/display.js";
 import { h } from "./dom.js";
 import { openSheet } from "./sheet.js";
 import { t } from "../core/i18n.js";
@@ -6,7 +7,7 @@ import { act } from "../flows/stage.js";
 import { appendFollowup } from "../flows/handover.js";
 
 export function handoverChecks(ctx, { readOnly = false, data = ctx.state.get().data } = {}) {
-  const summary = data?.summary || {};
+  const summary = displayView(data)?.summary || {};
   const busy = ctx.state.get().busy;
   return [
     ["hit", summary.hit_rows, HIT_STATES, summary.titles?.hit || t("handover.hit"), null],
@@ -31,11 +32,11 @@ export function callCard(data, draft) {
     && !(draft.injuryStatus !== "unknown" && /^(현재 다친 사람은|다친 사람이나 위험 신호가|다친 사람이 있는지는)/.test(line))
     && !(draft.towing !== "unknown" && /^(차량 이동 지원이|차량은 직접 이동)/.test(line)));
   return h("details", { class: "card" }, h("summary", {}, t("handover.callCard")), h("p", { class: "muted" }, t("handover.callBasis")),
-    h("ul", { class: "wrap-tasks" }, lines.map((line) => h("li", {}, line))));
+    h("ul", { class: "wrap-tasks" }, lines.map((line) => h("li", {}, displayCallLine(line, data)))));
 }
 
 export function uninsuredCard(data) {
-  const card = data.summary?.uninsured;
+  const card = displayView(data).summary?.uninsured;
   if (!card || !Array.isArray(card.lines)) return null;
   return h("details", { class: "card" }, h("summary", {}, card.title),
     h("ul", { class: "wrap-tasks" }, card.lines.map((line) => h("li", {}, line))),
@@ -56,7 +57,7 @@ async function openFollowup(ctx, record) {
     h("button", { type: "button", class: "btn btn--ghost", onclick: () => close() }, t("insurance.cancel")))], { label: t("handover.addNote") });
 }
 export function followupPanel(ctx, record = null) {
-  const data = record ? record.view : ctx.state.get().data;
+  const data = displayView(record ? record.view : ctx.state.get().data);
   if (!record && !Array.isArray(data?.summary?.followups)) return null;
   const rows = followupRows(record || { view: data });
   return h("section", { class: "card" }, h("h2", { class: "h2" }, data.summary?.titles?.followup || t("handover.followup")),

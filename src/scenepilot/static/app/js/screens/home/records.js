@@ -1,3 +1,4 @@
+import { displayView, displayState } from "../../core/display.js";
 import { h } from "../../ui/dom.js";
 import { chip } from "../../ui/chip.js";
 import { t, getLang } from "../../core/i18n.js";
@@ -8,15 +9,15 @@ import { preparationRows, taskList, editScene } from "../accident/wrap-shared.js
 import { resultForm } from "../accident/callprep.js";
 import { handoverChecks, uninsuredCard, followupPanel } from "../../ui/handover.js";
 
-const validRecords = () => getRecords().map(readRecord).filter(Boolean);
+const validRecords = () => getRecords().map(readRecord).filter(Boolean).map((record) => ({ ...record, view: displayView(record.view) }));
 
 function detail(ctx, record) {
   const toggle = () => {
     if (!setRecordCompleted(record.id, !record.completed)) ctx.update({ error: t("wrap.saveError") });
     else ctx.update({ error: null });
   };
-  if (ctx.state.get().recordEditing) {
-    const localCtx = { ...ctx, state: { get: () => ({ ...ctx.state.get(), data: record.view }) } };
+  if (displayState(ctx).recordEditing) {
+    const localCtx = { ...ctx, state: { get: () => ({ ...displayState(ctx), data: record.view }) } };
     return { focusKey: `record-edit:${record.id}`, body: [
       h("p", { class: "wrap-note" }, t("handover.copyEditNote")),
       ...resultForm(record.view),
@@ -34,7 +35,7 @@ function detail(ctx, record) {
   return { focusKey: `record:${record.id}`, body: [
     h("button", { type: "button", class: "linkbtn records-back", onclick: () => ctx.update({ selectedRecordId: null, recordNotice: false }) }, t("records.back")),
     h("h1", { class: "title" }, t("records.detail")),
-    ctx.state.get().recordNotice ? h("p", { class: "wrap-note", role: "status" }, t("records.saved")) : null,
+    displayState(ctx).recordNotice ? h("p", { class: "wrap-note", role: "status" }, t("records.saved")) : null,
     h("p", { class: "muted" }, formatWhen(record.draft.incidentAt || record.createdAt, getLang())),
     chip(record.completed ? "ok" : "later", { label: t(recordStatusKey(record)) }),
     preparationRows(record.view, record.profile, record.draft),
@@ -61,7 +62,7 @@ function detail(ctx, record) {
 }
 
 export function recordsScreen(ctx) {
-  const { selectedRecordId, ongoing } = ctx.state.get();
+  const { selectedRecordId, ongoing } = displayState(ctx);
   const records = validRecords();
   const selected = records.find((record) => record.id === selectedRecordId);
   if (selected) return detail(ctx, selected);

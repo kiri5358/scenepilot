@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // Emergency: the sentences are the server's; the two big call buttons are always there.
 import { h } from "../../ui/dom.js";
 import { icon } from "../../ui/icons.js";
@@ -10,7 +11,7 @@ function bigCall(number, className, labelKey) {
 }
 
 export function emergencyScreen(ctx) {
-  const prompt = ctx.state.get().data.prompt;
+  const prompt = displayState(ctx).data.prompt;
   const acknowledge = () => act(ctx, "ack-emergency");
 
   return {

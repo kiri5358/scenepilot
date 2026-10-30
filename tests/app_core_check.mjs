@@ -406,7 +406,8 @@ const commands = await core("commands.js");
 {
   for (const [name, phrases] of Object.entries(commands.HUB_COMMANDS)) {
     assert.ok(phrases.length > 0, name);
-    for (const p of phrases) assert.ok(/[가-힣]/.test(p), `${name}: Korean phrases only`);
+    assert.ok(phrases.some((p) => /[가-힣]/.test(p)), `${name}: Korean commands retained`);
+    assert.ok(phrases.some((p) => /^[a-z ]+$/i.test(p)), `${name}: English commands available`);
   }
 }
 
