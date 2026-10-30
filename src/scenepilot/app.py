@@ -56,6 +56,13 @@ MAX_SESSIONS = 500  # keep memory bounded on a public demo by dropping the oldes
 
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
+    """The front page is the new modular mobile UI (static/app)."""
+    return FileResponse(STATIC_DIR / "app" / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/legacy", include_in_schema=False)
+async def legacy_index() -> FileResponse:
+    """The first UI (static/index.html + app.js), kept for the Android build and as a fallback."""
     return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
 

@@ -76,4 +76,4 @@ export const SETUP_COMMANDS = {
   notalk: ["싫어", "연락처만", "대화없이", "없이"],
 };
 
-export const DEFAULT_COACH_PREFS = { mode: "screen", ai: true };   // mode: "screen" (screen + vibration) | "ear" (read aloud)
+export const DEFAULT_COACH_PREFS = { mode: "screen", ai: false };   // mode: "screen" (screen + vibration) | "ear" (read aloud)

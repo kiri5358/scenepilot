@@ -399,7 +399,7 @@ const commands = await core("commands.js");
   assert.equal(withPhoto[1].kind, "ok", "a photo of the other car counts for its plate");
   assert.equal(withPhoto[1].valueKey, "coach.row.photo");
   assert.equal(coach.infoRows({}, [{ id: "other_vehicle", status: "skipped" }])[1].kind, "unknown");
-  assert.deepEqual(coach.DEFAULT_COACH_PREFS, { mode: "screen", ai: true });
+  assert.deepEqual(coach.DEFAULT_COACH_PREFS, { mode: "screen", ai: false });   // the AI coach is off until the user switches it on
 }
 
 // ---------- commands ----------

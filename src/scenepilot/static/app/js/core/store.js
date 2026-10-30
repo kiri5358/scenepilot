@@ -100,11 +100,12 @@ export function getSettings() {
 export const saveSettings = (patch) => setJSON("settings", { ...getSettings(), ...patch });
 
 // How the talk coaching is received. mode: "screen" (screen + vibration, no sound) or "ear" (read aloud);
-// ai: use the AI coach (sends the last sentences as text), or only the fixed reminders. The mockup's default is on.
+// ai: use the AI coach (sends the last sentences as text), or only the fixed reminders. It is OFF until the user switches it
+// on, because the text goes to a server and the legal side of that has not been reviewed (the mockup's default was on).
 export function getCoachPrefs() {
   const saved = getJSON("coachPrefs", null);
   if (isObject(saved) && ["screen", "ear"].includes(saved.mode) && typeof saved.ai === "boolean") return saved;
-  return { mode: get("coachmode") === "ear" ? "ear" : "screen", ai: get("coach") !== "off" };
+  return { mode: get("coachmode") === "ear" ? "ear" : "screen", ai: get("coach") === "on" };
 }
 export function saveCoachPrefs({ mode, ai }) {
   return setJSON("coachPrefs", { mode: mode === "ear" ? "ear" : "screen", ai: Boolean(ai) });
