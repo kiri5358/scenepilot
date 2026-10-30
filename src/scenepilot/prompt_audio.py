@@ -13,6 +13,8 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import re
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
@@ -28,9 +30,44 @@ KR_AUDIO_DIR = AUDIO_DIR / "ko"                       # the Korea edition has it
 RETRY_PREFIX = "Sorry, I didn't catch that."  # said before a safety question that must be asked again
 
 
+KR_EN_AUDIO_DIR = AUDIO_DIR / "kr-en"                 # the Korea edition read in English: its own clips and manifest
+KR_EN_VOICE = DEFAULT_VOICE                           # the same calm English voice as the US demo
+_APP = Path(__file__).parent / "static" / "app"
+_SPOKEN_UI_KEYS = ("coach.setup.title", "coach.tell.title", "ask.say", "listen.retrySay")   # en.json texts the app reads aloud
+_PHOTO_TITLES = ("Damage to my vehicle", "Other vehicle and plate", "Whole scene")   # read as "<title>: not taken yet."
+
+
 def normalize(text: str) -> str:
     """The key the app uses to find a sentence: its words with single spaces."""
     return " ".join(text.split())
+
+
+def speech_text(text: str) -> str:
+    """What the voice should say for a written English sentence (the same rules as spokenText() in services/speak.js):
+    "119" would be read "one hundred nineteen", so the emergency numbers are spelled out digit by digit."""
+    out = re.sub(r"\s+", " ", re.sub(r"\s*[·•]\s*", ", ", text)).strip()
+    out = re.sub(r"\b119\b", "one one nine", out)
+    out = re.sub(r"\b112\b", "one one two", out)
+    return re.sub(r"\b(\d)/(\d)\b", r"\1 of \2", out)
+
+
+def kr_english_prompts() -> list[str]:
+    """The English wording of everything the Korea edition reads aloud (the new GUI's display-language table, server-en.js,
+    plus the few spoken texts in en.json). node reads the ES module; the order is stable and there are no duplicates."""
+    code = f"import d from {json.dumps(_APP.joinpath('js', 'core', 'server-en.js').as_uri())}; console.log(JSON.stringify(Object.values(d)))"
+    run = subprocess.run(["node", "--input-type=module", "-e", code], capture_output=True, text=True, encoding="utf-8", check=True)
+    texts = [t for t in json.loads(run.stdout) if isinstance(t, str) and len(t.split()) >= 2 and 10 <= len(t) <= 300 and "reviewed" not in t]   # source labels and long notices are not read
+    ui = json.loads((_APP / "i18n" / "en.json").read_text(encoding="utf-8"))
+    texts += [ui[k] for k in _SPOKEN_UI_KEYS if k in ui]
+    texts += ["Sorry, I did not catch that."] + [f"{title}: not taken yet." for title in _PHOTO_TITLES]
+    seen: set[str] = set()
+    out: list[str] = []
+    for text in texts:
+        key = normalize(text)
+        if key and key not in seen and not re.search(r"[가-힣]", key):
+            seen.add(key)
+            out.append(key)
+    return out
 
 
 def clip_name(text: str, voice: str) -> str:

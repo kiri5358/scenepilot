@@ -189,7 +189,7 @@
   "ask.read": "Read aloud",
   "ask.sourceCount": "Show {n} sources",
   "ask.back": "Back",
-  "ask.say": "Please say your question. To finish, say stop (in Korean).",
+  "ask.say": "Please say your question. To finish, you can say stop in Korean.",
   "listen.hint.ask": "Say your question · say \"stop\" (in Korean) to finish",
   "hub.ask": "Ask a question",
   "stepsheet.title": "Go to a step",

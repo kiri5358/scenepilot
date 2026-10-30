@@ -4,14 +4,16 @@
 import { get, set } from "../core/store.js";
 import { getLang, serverText } from "../core/i18n.js";
 
-const CLIP_BASE = "/static/audio/ko/";
+// Fixed sentences have audio made once with NVIDIA Magpie TTS, one set per display language: Korean sentences in
+// audio/ko, and the English wording of the same sentences in audio/kr-en (English voice, Korea edition content).
+const CLIP_BASE = { ko: "/static/audio/ko/", en: "/static/audio/kr-en/" };
 const RATE = 1.0;
 
 let enabled = get("voice") !== "off";
 let playing = false;
 let token = 0;                 // the newest speak() call; older ones stop quietly
 let player = null;
-let clips = {};
+let clips = { ko: {}, en: {} };
 let lastParts = [];
 const listeners = new Set();
 
@@ -24,10 +26,30 @@ export const isPlaying = () => playing;
 export const hasSomethingToReplay = () => lastParts.length > 0;
 
 export async function loadClips() {
-  try {
-    const res = await fetch(CLIP_BASE + "manifest.json");
-    clips = res.ok ? (await res.json()).items || {} : {};
-  } catch { clips = {}; /* no clips: the phone's voice reads everything */ }
+  await Promise.all(Object.keys(CLIP_BASE).map(async (code) => {
+    try {
+      const res = await fetch(CLIP_BASE[code] + "manifest.json");
+      clips[code] = res.ok ? (await res.json()).items || {} : {};
+    } catch { clips[code] = {}; /* no clips: the phone's voice reads everything */ }
+  }));
+}
+
+// What the phone's own voice should say: the written text is kept for the screen, but some things are read badly.
+// "119" would be read "one hundred nineteen", so the emergency numbers are spelled out digit by digit in English.
+export function spokenText(text, language = getLang()) {
+  let out = String(text).replace(/\s*[·•]\s*/g, ", ").replace(/\s+/g, " ").trim();
+  if (language === "en") {
+    out = out.replace(/\b119\b/g, "one one nine").replace(/\b112\b/g, "one one two").replace(/\b(\d)\/(\d)\b/g, "$1 of $2");
+  }
+  return out;
+}
+
+// The best voice the phone has for a language: the exact language first, then a natural-sounding one.
+export function pickVoice(voices, lang) {
+  const exact = voices.filter((v) => v.lang && v.lang.replace("_", "-").toLowerCase() === lang.toLowerCase());
+  const pool = exact.length ? exact : voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()));
+  const nice = /natural|neural|online|google|samantha|aria|jenny|siri|premium|enhanced/i;
+  return pool.find((v) => nice.test(v.name)) || pool.find((v) => !v.localService) || pool[0] || null;
 }
 
 export function stop() {
@@ -39,8 +61,11 @@ export function stop() {
 
 function deviceSpeak(text, next) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) { setTimeout(next, 0); return; }
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = /[가-힣]/.test(text) ? "ko-KR" : getLang() === "en" ? "en-US" : "ko-KR";
+  const lang = /[가-힣]/.test(text) ? "ko-KR" : getLang() === "en" ? "en-US" : "ko-KR";
+  const utterance = new SpeechSynthesisUtterance(spokenText(text));
+  utterance.lang = lang;
+  const voice = pickVoice(window.speechSynthesis.getVoices(), lang);   // otherwise the phone may read English with its Korean voice
+  if (voice) utterance.voice = voice;
   utterance.rate = RATE;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; clearTimeout(timer); next(); };
@@ -51,9 +76,10 @@ function deviceSpeak(text, next) {
 }
 
 function sayOne(text, next) {
-  const file = getLang() === "ko" ? clips[sentenceKey(text)] : null;
+  const language = getLang() === "en" ? "en" : "ko";
+  const file = clips[language][sentenceKey(text)];
   if (!file) { deviceSpeak(text, next); return; }
-  const audio = new Audio(CLIP_BASE + file);
+  const audio = new Audio(CLIP_BASE[language] + file);
   audio.playbackRate = RATE;
   player = audio;
   let finished = false;

@@ -1,6 +1,11 @@
 """Pre-made speech: the list of fixed sentences, how clips are named and kept, and that nothing the app says is missed."""
+import json
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from scenepilot import prompt_audio as pa
 from scenepilot import session as sm
@@ -118,3 +123,37 @@ def test_audio_is_optional_the_manifest_may_be_missing():
         import json
         for name in json.loads(manifest.read_text(encoding="utf-8"))["items"].values():
             assert (manifest.parent / name).exists(), name
+
+
+# ---------- the Korea edition read in English ----------
+
+def test_emergency_numbers_are_spelled_out_for_the_english_voice():
+    assert pa.speech_text("Call 119 now. Safety check 1/2 · wait") == "Call one one nine now. Safety check 1 of 2, wait"
+    assert pa.speech_text("Report it to 112.") == "Report it to one one two."
+    assert pa.speech_text("Take 5 photos") == "Take 5 photos"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_the_english_prompt_list_covers_what_the_new_gui_reads_aloud():
+    prompts = pa.kr_english_prompts()
+    assert 60 <= len(prompts) <= 400 and len(prompts) == len(set(prompts))
+    assert not any("가" <= ch <= "힣" for text in prompts for ch in text)
+    for sentence in ("Is anyone hurt, or can you see smoke, fire or leaking fuel?", "Stay at the scene until you have exchanged details.",
+                     "Sorry, I did not catch that.", "Whole scene: not taken yet."):
+        assert sentence in prompts, sentence
+    # the browser's script and this tool must spell the numbers the same way
+    run = subprocess.run(["node", "--input-type=module", "-e",
+                          f"import('{(pa._APP / 'js' / 'services' / 'speak.js').as_uri()}').then(m => console.log(m.spokenText('Call 119 or 112 · now. Check 1/2', 'en')))"],
+                         capture_output=True, text=True, encoding="utf-8", check=True)
+    assert run.stdout.strip() == pa.speech_text("Call 119 or 112 · now. Check 1/2")
+
+
+def test_english_clips_if_shipped_cover_every_english_sentence():
+    manifest = pa.KR_EN_AUDIO_DIR / pa.MANIFEST
+    if not manifest.exists():
+        pytest.skip("the English clips are optional: without them the phone's voice reads English")
+    items = json.loads(manifest.read_text(encoding="utf-8"))["items"]
+    if shutil.which("node") is not None:
+        assert set(pa.kr_english_prompts()) <= set(items)
+    for name in items.values():
+        assert (manifest.parent / name).exists(), name
