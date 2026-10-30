@@ -1,5 +1,5 @@
-// The app's own words, Korean first with English as an option. The server's fixed sentences are not translated here:
-// they arrive in Korean for a Korea session and are shown as they are.
+// Display language is independent of the accident's country (always KR).
+import serverEnglish from "./server-en.js";
 
 const dictionaries = {};
 let lang = "ko";
@@ -13,6 +13,22 @@ export function translate(dicts, language, key, vars) {
 
 export const t = (key, vars) => translate(dictionaries, lang, key, vars);
 export const getLang = () => lang;
+export const serverText = (text, language = lang) => {
+  if (language !== "en" || typeof text !== "string") return text;
+  if (Object.hasOwn(serverEnglish, text)) return serverEnglish[text];
+  const retry = "죄송해요, 잘 못 들었어요. ";
+  if (text.startsWith(retry)) return `Sorry, I did not catch that. ${serverText(text.slice(retry.length), language)}`;
+  // Only fixed, structured server compositions. Never run this over user-entered text.
+  const photo = text.match(/^(.+): 아직 찍지 않았어요\.$/);
+  if (photo) return `${serverText(photo[1], language)}: not taken yet.`;
+  const more = text.match(/^사진 더 찍기 \((\d+)장 남음\)$/);
+  if (more) return `Take more photos (${more[1]} left)`;
+  for (const separator of [" - ", ": "]) {
+    const at = text.indexOf(separator);
+    if (at > 0) return `${serverText(text.slice(0, at), language)}${separator}${serverText(text.slice(at + separator.length), language)}`;
+  }
+  return text;
+};
 
 export function setDictionaries(next) { Object.assign(dictionaries, next); }
 

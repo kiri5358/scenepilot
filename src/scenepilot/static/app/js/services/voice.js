@@ -3,7 +3,7 @@
 // Hands-free is the default: the app listens while it reads (so an answer can cut the reading short) and again when it
 // has finished. The person can switch listening off.
 import { get, set } from "../core/store.js";
-import { t } from "../core/i18n.js";
+import { t, getLang } from "../core/i18n.js";
 import * as speaker from "./speak.js";
 
 const MAX_SILENT_ROUNDS = 3;   // quiet rounds before the app pauses (saves battery, avoids a loop)
@@ -24,7 +24,7 @@ const patch = (next) => { Object.assign(view, next); emit(); };
 export const subscribe = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
 export const getView = () => ({ ...view });
 
-export function init() { if (speech()) speech().setLang("ko-KR"); }
+export function init() { if (speech()) speech().setLang(getLang() === "en" ? "en-US" : "ko-KR"); }
 
 // Spoken commands: the table for one screen from speech.js, and the match of a sentence against a table.
 export const commandTable = (name) => (speech() && speech().COMMANDS[name]) || null;

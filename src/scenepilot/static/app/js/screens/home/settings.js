@@ -36,6 +36,7 @@ export async function openSettings(ctx) {
       section("settings.lang", choice("lang", getLang(), [{ value: "ko", label: t("lang.ko") }, { value: "en", label: t("lang.en") }], async (value) => {
         const ok = saveSettings({ lang: value });
         await setLang(value);
+        voice.init();
         ctx.update({ lang: value, notice: ok ? null : t("settings.sessionOnly") }); close();
       }, t("settings.lang")), h("p", { class: "muted" }, t("settings.langNote"))),
       section("settings.sos", choice("sos", settings.sos, [

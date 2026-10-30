@@ -121,3 +121,5 @@ def test_the_new_ui_is_the_front_page_and_the_old_one_stays_at_legacy():
     assert page.status_code == 200 and "/static/app/js/main.js" in page.text and "/static/app.js" not in page.text
     old = client.get("/legacy")
     assert old.status_code == 200 and "/static/app.js" in old.text and "/static/app/" not in old.text
+    assert "/static/kr_home.js" not in page.text
+    assert client.get("/static/index.html").status_code == 200

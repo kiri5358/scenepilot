@@ -81,12 +81,23 @@ def hints(country: str = "US") -> list[str]:
     return [r.hint for r in rules_for(country)]
 
 
-def public_rules(country: str = "US") -> dict:
+_EN_INSURANCE_PHRASES = {
+    "coverage": ("i filed a claim", "i reported it", "already reported", "claim is filed"),
+    "refuse": ("won't accept the claim", "will not accept the claim", "refused the claim", "won't process"),
+    "uninsured": ("i have no insurance", "i am uninsured", "i'm uninsured", "not insured"),
+    "tow": ("call a tow truck", "towing is free", "free towing", "tow truck is coming"),
+}
+
+
+def public_rules(country: str = "US", language: str | None = None) -> dict:
     if kr.is_kr(country):
+        english = {r.id: r.phrases for r in RULES} if language == "en" else {}
+        if language == "en":
+            english.update(_EN_INSURANCE_PHRASES)
         return {
             "cooldown_seconds": kr.WATCH_COOLDOWN_SECONDS, "compact": True,
             "say": kr.SAY_THIS, "severity": kr.COACH_SEVERITY, "tell_first": kr.COACH_TELL_FIRST,
-            "rules": [{"id": r.id, "phrases": [normalize_ko(p) for p in r.phrases], "hint": r.hint} for r in RULES_KR],
+            "rules": [{"id": r.id, "phrases": [normalize_ko(p) for p in (*r.phrases, *english.get(r.id, ()))], "hint": r.hint} for r in RULES_KR],
         }
     return {
         "cooldown_seconds": COOLDOWN_SECONDS, "compact": False,

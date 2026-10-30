@@ -76,7 +76,7 @@
   "consent.cancel": "Cancel",
   "settings.title": "Settings",
   "settings.lang": "Language",
-  "settings.langNote": "Sentences sent by the server are shown in Korean.",
+  "settings.langNote": "Changes the display and voice language. Korean accident guidance and 119/112 stay the same. Previously entered or generated content stays in its original language.",
   "settings.sos": "119 and 112 buttons",
   "settings.sos.always": "Always",
   "settings.sos.accident": "During an accident",

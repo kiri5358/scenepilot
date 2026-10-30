@@ -111,8 +111,8 @@ function render(s) {
 state.subscribe(render);
 
 async function boot() {
-  voice.init();
   await Promise.all([setLang(settings.lang), loadClips()]);
+  voice.init();
   render(state.get());
   checkOngoing(ctx);
   coachSession.loadProtocol().then((coachProtocol) => state.update({ coachProtocol })).catch(() => {});

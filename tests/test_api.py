@@ -75,6 +75,7 @@ def test_ui_is_served_and_view_has_screen_data():
     r = client.get("/legacy")   # the first UI; "/" is the new one
     assert r.status_code == 200 and "ScenePilot" in r.text and "/static/app.js" in r.text
     assert 'href="tel:911"' in r.text  # the 911 button is on every screen, so no question has to be answered first
+    assert 'src="/static/app/js/main.js"' in client.get("/").text   # "/" is the modular UI
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/static/style.css").status_code == 200
     v = client.post("/api/sessions").json()

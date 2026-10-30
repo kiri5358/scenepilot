@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // After the required photos: talk with the other driver, take more photos, or wrap up.
 import { h } from "../../ui/dom.js";
 import { icon } from "../../ui/icons.js";
@@ -17,7 +18,7 @@ function option({ icon: iconName, title, sub, main = false, disabled = false, on
 }
 
 export function hubScreen(ctx) {
-  const { data, busy } = ctx.state.get();
+  const { data, busy } = displayState(ctx);
   const prompt = data.prompt;
   const left = extraLeft(data.photo_progress);
 

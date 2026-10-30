@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // Safety check: one question, three big answers. Danger answers (yes or not sure) lead to the emergency screen on the
 // server's side; this screen only sends what was said or tapped.
 import { h } from "../../ui/dom.js";
@@ -13,7 +14,7 @@ function mark(tone) {
 }
 
 export function safetyScreen(ctx) {
-  const { data, busy } = ctx.state.get();
+  const { data, busy } = displayState(ctx);
   const prompt = data.prompt;
   const position = safetyPosition(data.safety_progress);
   const choices = answerChoices(prompt.item_id, prompt.options);

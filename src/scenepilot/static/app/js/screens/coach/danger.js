@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // A danger heard in the talk (threats, a drunk driver, pain) covers the whole screen. Ordinary coaching stops; the only
 // things on it are what to do and the two phone numbers. The sentence is the server's; the card only picks the title
 // and which number comes first.
@@ -12,7 +13,7 @@ function callButton(number, className, label) {
 }
 
 export function dangerScreen(ctx) {
-  const danger = ctx.state.get().coach.danger || { id: "hostile", text: "" };
+  const danger = displayState(ctx).coach.danger || { id: "hostile", text: "" };
   const variant = dangerVariant(danger.id);
   const pain = variant.firstCall === "119";
   return {

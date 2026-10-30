@@ -2,6 +2,7 @@
 // anything without a clip is read by the phone's own voice. The person can pause, replay, or turn the voice off.
 // The "voice" key is shared with the older UI ("off" turns it off).
 import { get, set } from "../core/store.js";
+import { getLang, serverText } from "../core/i18n.js";
 
 const CLIP_BASE = "/static/audio/ko/";
 const RATE = 1.0;
@@ -39,7 +40,7 @@ export function stop() {
 function deviceSpeak(text, next) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) { setTimeout(next, 0); return; }
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ko-KR";
+  utterance.lang = /[가-힣]/.test(text) ? "ko-KR" : getLang() === "en" ? "en-US" : "ko-KR";
   utterance.rate = RATE;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; clearTimeout(timer); next(); };
@@ -50,7 +51,7 @@ function deviceSpeak(text, next) {
 }
 
 function sayOne(text, next) {
-  const file = clips[sentenceKey(text)];
+  const file = getLang() === "ko" ? clips[sentenceKey(text)] : null;
   if (!file) { deviceSpeak(text, next); return; }
   const audio = new Audio(CLIP_BASE + file);
   audio.playbackRate = RATE;
@@ -66,7 +67,7 @@ function sayOne(text, next) {
 
 // parts: one sentence or a list, said one after the other. force: speak even when the voice is turned off.
 export function speak(parts, { force = false, onDone = null, remember = true } = {}) {
-  const list = (Array.isArray(parts) ? parts : [parts]).map(String).filter((s) => s.trim());
+  const list = (Array.isArray(parts) ? parts : [parts]).map((part) => serverText(String(part))).filter((s) => s.trim());
   stop();
   if (remember) lastParts = list;
   if (!(enabled || force) || !list.length) { if (onDone) setTimeout(onDone, 0); return; }

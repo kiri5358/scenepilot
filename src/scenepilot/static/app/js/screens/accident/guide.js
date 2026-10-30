@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // What to do now. The first server step is a list of sentences, shown one at a time; the steps after it are notes
 // (one card each, with their sources). All wording comes from the server.
 import { h } from "../../ui/dom.js";
@@ -31,7 +32,7 @@ function itemCard(view) {
 }
 
 export function guideScreen(ctx) {
-  const { data, guideItem } = ctx.state.get();
+  const { data, guideItem } = displayState(ctx);
   const prompt = data.prompt;
   const view = guideState(prompt, guideItem);
 

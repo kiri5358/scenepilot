@@ -1,3 +1,4 @@
+import { displayView, displayState } from "../../core/display.js";
 import { h } from "../../ui/dom.js";
 import { icon } from "../../ui/icons.js";
 import { t } from "../../core/i18n.js";
@@ -11,6 +12,7 @@ import { handoverChecks, callCard, uninsuredCard } from "../../ui/handover.js";
 import { CONTACT_CHARS } from "../../core/handover.js";
 
 export function resultForm(data, ctx = null) {
+  data = displayView(data);
   let draft = getWrapDraft(data.session.id);
   const message = h("p", { class: "insurance-feedback", role: "status" });
   const tasks = h("div", {}, taskList(data, draft));
@@ -51,7 +53,7 @@ export function resultForm(data, ctx = null) {
 }
 
 export function callprepScreen(ctx) {
-  const { data, callPhase, busy } = ctx.state.get();
+  const { data, callPhase, busy } = displayState(ctx);
   const after = callPhase === "after";
   const profile = getProfile(), draft = getWrapDraft(data.session.id);
   const href = phoneHref(profile.claims_phone);

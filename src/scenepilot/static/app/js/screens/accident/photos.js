@@ -1,3 +1,4 @@
+import { displayState } from "../../core/display.js";
 // Photos: one slot at a time. The AI describes the photo, the server's checklist rules pass it or ask for a retake.
 // The wording of the instruction, the warning and the retake reason is the server's.
 import { h } from "../../ui/dom.js";
@@ -21,7 +22,7 @@ function picker(ctx, id, capture) {
 }
 
 function resultCard(ctx, view) {
-  const { busy, lastPhoto } = ctx.state.get();
+  const { busy, lastPhoto } = displayState(ctx);
   if (busy) return h("div", { class: "photo-result photo-result--busy", role: "status" }, busy);
   if (!lastPhoto || !lastPhoto.accepted) return null;
   const slot = view.checklist.find((s) => s.id === lastPhoto.itemId);
@@ -63,8 +64,8 @@ async function askSkipReason(ctx) {
 }
 
 export function photosScreen(ctx) {
-  const view = ctx.state.get().data;
-  const { busy } = ctx.state.get();
+  const view = displayState(ctx).data;
+  const { busy } = displayState(ctx);
   const prompt = view.prompt;
   const position = photoPosition(view.photo_progress);
   const camera = picker(ctx, "photo-camera", true);

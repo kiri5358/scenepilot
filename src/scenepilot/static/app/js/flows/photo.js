@@ -1,7 +1,7 @@
 // Sending one photo to the server. The phone shrinks it first (phones take very large pictures), and the server decides
 // whether it is good enough: the AI only describes what it sees, the checklist rules pass or reject.
 import { api, sessionPath } from "../core/api.js";
-import { t } from "../core/i18n.js";
+import { t, getLang } from "../core/i18n.js";
 import { errorMessage } from "./accident.js";
 
 export async function shrink(file, max = 1280) {
@@ -28,7 +28,7 @@ export async function uploadPhoto({ state, update }, file) {
     const blob = await shrink(file);
     const form = new FormData();
     form.append("file", blob, "photo.jpg");
-    const data = await api(sessionPath(current.data.session.id, "photo"), { method: "POST", body: form });
+    const data = await api(`${sessionPath(current.data.session.id, "photo")}?language=${getLang()}`, { method: "POST", body: form });
     update({
       data, busy: null,
       lastPhoto: { itemId, accepted: data.verdict.accepted, message: data.verdict.message, observations: (data.analysis && data.analysis.observations) || [] },
