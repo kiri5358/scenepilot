@@ -223,3 +223,25 @@ def test_the_call_record_api():
     r = client.post(f"/api/sessions/{s.id}/contact", json={"state": "told", "number": "A-1"}).json()
     assert r["summary"]["contact"]["state"] == "told" and r["summary"]["contact"]["number"] == "A-1"
     assert client.post(f"/api/sessions/{s.id}/contact", json={"state": "nope"}).status_code == 422
+
+
+# ---------- the coaching screens: what to say, how urgent ----------
+
+def test_every_reminder_the_coach_can_give_has_a_severity_and_every_risk_a_sentence_to_say():
+    ids = {r.id for r in watch_hints.RULES_KR} | set(kr.COACH_HINTS)
+    assert ids <= set(kr.COACH_SEVERITY) and set(kr.COACH_SEVERITY.values()) <= {1, 2, 3}
+    for rid in ids - {"hostile", "drunk"}:   # a threat or drinking gets a safety instruction, not a line to say
+        assert rid in kr.SAY_THIS, rid
+    for text in [*kr.SAY_THIS.values(), kr.COACH_TELL_FIRST]:
+        assert guard.is_safe(text), text
+
+
+def test_danger_gets_three_pulses_and_a_missing_detail_gets_one():
+    assert kr.COACH_SEVERITY["hostile"] == kr.COACH_SEVERITY["drunk"] == 3
+    assert {kr.COACH_SEVERITY[i] for i in ("ask_contact", "ask_insurance", "ask_plate")} == {1}
+
+
+def test_the_watch_rules_carry_the_sentences_for_the_korean_screen_only():
+    r = client.get("/api/watch-rules?country=KR").json()
+    assert r["say"] == kr.SAY_THIS and r["severity"] == kr.COACH_SEVERITY and r["tell_first"] == kr.COACH_TELL_FIRST
+    assert "say" not in client.get("/api/watch-rules").json()

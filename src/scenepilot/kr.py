@@ -273,6 +273,30 @@ COACH_HINTS = {
     "ask_insurance": "상대방 보험사를 아직 못 들었어요. 물어보세요.",
     "ask_plate": "상대 차량번호를 아직 못 들었어요. 사진으로 찍거나 적어 두세요.",
 }
+# The coaching screen: a sentence the user may say out loud (shown big; the other driver may read it), and how urgent a
+# reminder is (it sets the number of vibrations: 1 = a detail is missing, 2 = stop and check, 3 = danger).
+COACH_SEVERITY = {
+    "ask_contact": 1, "ask_insurance": 1, "ask_plate": 1, "tone": 1,
+    "deal": 2, "sign": 2, "police": 2, "leaving": 2, "fault": 2, "coverage": 2, "refuse": 2, "uninsured": 2, "tow": 2, "pain": 3,
+    "hostile": 3, "drunk": 3,
+}
+SAY_THIS = {
+    "ask_contact": "성함과 연락처를 알려 주시겠어요?",
+    "ask_insurance": "보험사가 어디세요? 서로 보험 접수하고 연락처를 주고받을까요?",
+    "ask_plate": "차량번호를 사진으로 찍어 두겠습니다.",
+    "tone": "천천히 사실만 말씀드릴게요.",
+    "deal": "피해 상태와 보험 처리에 미치는 영향을 먼저 확인하겠습니다.",
+    "sign": "무엇에 동의하는 문서인지 먼저 확인하고 싶습니다.",
+    "police": "필요하면 경찰에 연락해서 확인하겠습니다.",
+    "leaving": "연락처와 차량번호를 주고받고 가시면 좋겠습니다.",
+    "fault": "제가 본 상황은 이렇습니다. 판단은 조사 후에 확인하겠습니다.",
+    "coverage": "차량 손해와 다친 분 접수가 각각 어떻게 됐는지 알려 주세요.",
+    "refuse": "거부하신 내용을 기록하고 보험사에 확인하겠습니다.",
+    "uninsured": "차량번호와 연락처를 적어 두고 제 보험사에 확인하겠습니다.",
+    "tow": "어느 업체이고 어디까지, 얼마인지 먼저 알려 주세요.",
+    "pain": "불편하시면 진료를 받아 보시는 게 좋겠습니다.",
+}
+COACH_TELL_FIRST = "사고 처리 앱이 대화를 듣고 정리를 도와주고 있어요."
 # what each "ask" reminder is about: the detail of the other driver that is still missing from the summary
 COACH_ASK_FIELDS = {"ask_contact": "other_contact", "ask_insurance": "other_insurance", "ask_plate": "other_plate"}
 COACH_HEARD_LABELS = {

@@ -85,6 +85,7 @@ def public_rules(country: str = "US") -> dict:
     if kr.is_kr(country):
         return {
             "cooldown_seconds": kr.WATCH_COOLDOWN_SECONDS, "compact": True,
+            "say": kr.SAY_THIS, "severity": kr.COACH_SEVERITY, "tell_first": kr.COACH_TELL_FIRST,
             "rules": [{"id": r.id, "phrases": [normalize_ko(p) for p in r.phrases], "hint": r.hint} for r in RULES_KR],
         }
     return {
