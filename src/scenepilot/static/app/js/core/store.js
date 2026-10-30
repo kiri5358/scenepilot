@@ -4,6 +4,7 @@
 
 import { COVERAGES, isObject, normalizeProfile, normalizeCoverage } from "./insurance.js";
 import { normalizeDraft } from "./wrap.js";
+import { contactPatch } from "./handover.js";
 export { COVERAGES };
 
 const PREFIX = "scenepilot.";
@@ -128,6 +129,11 @@ export function saveWrapDraft(id, patch) {
   const saved = getJSON("wrapDrafts", {});
   return setJSON("wrapDrafts", { ...(isObject(saved) ? saved : {}), [id]: draft });
 }
+export function hydrateWrapDraft(data) {
+  const id = data.session.id;
+  const patch = contactPatch(getWrapDraft(id), data.summary?.contact || data.session.contact);
+  if (Object.keys(patch).length) saveWrapDraft(id, patch);
+}
 export function putRecord(record) {
   if (!record || typeof record.id !== "string" || !record.view?.session) return false;
   const records = getRecords();
@@ -139,7 +145,7 @@ export function setRecordCompleted(id, completed) {
 }
 export function saveRecordDraft(id) {
   const record = getRecords().find((item) => item?.id === id);
-  return record ? putRecord({ ...record, draft: getWrapDraft(id), updatedAt: new Date().toISOString() }) : false;
+  return record ? putRecord({ ...record, draft: getWrapDraft(id), contactSynced: false, updatedAt: new Date().toISOString() }) : false;
 }
 
 export const hasOnboarding = () => get("onboarding") === "1";

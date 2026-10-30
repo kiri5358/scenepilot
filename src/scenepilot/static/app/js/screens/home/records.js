@@ -6,6 +6,7 @@ import { formatWhen, remainingTasks, readRecord, recordStatusKey } from "../../c
 import { resumeAccident } from "../../flows/accident.js";
 import { preparationRows, taskList, editScene } from "../accident/wrap-shared.js";
 import { resultForm } from "../accident/callprep.js";
+import { handoverChecks, uninsuredCard, followupPanel } from "../../ui/handover.js";
 
 const validRecords = () => getRecords().map(readRecord).filter(Boolean);
 
@@ -17,6 +18,7 @@ function detail(ctx, record) {
   if (ctx.state.get().recordEditing) {
     const localCtx = { ...ctx, state: { get: () => ({ ...ctx.state.get(), data: record.view }) } };
     return { focusKey: `record-edit:${record.id}`, body: [
+      h("p", { class: "wrap-note" }, t("handover.copyEditNote")),
       ...resultForm(record.view),
       h("button", { type: "button", class: "btn btn--secondary", onclick: () => editScene(localCtx) }, t("wrap.editScene")),
       h("button", { type: "button", class: "btn btn--primary btn--lg", onclick: () => {
@@ -42,6 +44,7 @@ function detail(ctx, record) {
       h("p", {}, t("records.agent", { value: record.draft.agent || t("wrap.unknown") })),
       h("p", {}, t("records.scope", { value: record.draft.scopes.length ? record.draft.scopes.map((scope) => t(`wrap.scope.${scope}`)).join(" · ") : t("wrap.unknown") }))),
     h("section", { class: "card" }, h("h2", { class: "h2" }, t("wrap.remaining")), taskList(record.view, record.draft)),
+    ...handoverChecks(ctx, { readOnly: true, data: record.view }), uninsuredCard(record.view), followupPanel(ctx, record),
     h("details", { class: "card" }, h("summary", {}, t("records.serverSummary")),
       (record.view.summary?.sections || []).filter((section) => section.items.length).map((section) => h("section", { class: "stack" },
         h("h3", { class: "h2" }, section.title), (section.items || []).map((item) => h("p", { class: "records-summary-item" },

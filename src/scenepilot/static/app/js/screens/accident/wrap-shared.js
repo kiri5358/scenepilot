@@ -4,6 +4,7 @@ import { openSheet } from "../../ui/sheet.js";
 import { t, getLang } from "../../core/i18n.js";
 import { getWrapDraft, saveWrapDraft } from "../../core/store.js";
 import { callRows, remainingTasks } from "../../core/wrap.js";
+import { CONTACT_CHARS } from "../../core/handover.js";
 
 export function taskList(view, draft) {
   const tasks = remainingTasks(view, draft);
@@ -31,7 +32,7 @@ export async function editScene(ctx) {
   const fields = definitions.map(([name, type]) => {
     const input = Array.isArray(type) ? h("select", { id: `scene-${name}` }, type.map((value) => h("option", { value, selected: value === draft[name] }, t(`wrap.option.${name}.${value}`))))
       : type === "textarea" ? h("textarea", { id: `scene-${name}`, rows: 3, maxlength: 2000 }, draft[name])
-        : h("input", { id: `scene-${name}`, type, value: draft[name], maxlength: name === "location" ? 300 : name === "injuryNote" ? 500 : 100 });
+        : h("input", { id: `scene-${name}`, type, value: draft[name], maxlength: name === "claimNumber" && data.summary?.contact ? CONTACT_CHARS : name === "location" ? 300 : name === "injuryNote" ? 500 : 100 });
     inputs[name] = input;
     return h("div", { class: "insurance-field" }, h("label", { for: `scene-${name}` }, t(`wrap.field.${name}`)), input);
   });

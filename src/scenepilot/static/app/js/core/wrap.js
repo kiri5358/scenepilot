@@ -1,16 +1,18 @@
 // Facts for the insurer and outstanding tasks. Never turn an unconfirmed AI suggestion into a confirmed fact.
 import { isObject, normalizeProfile } from "./insurance.js";
 
-export const CLAIM_STATUSES = ["not_connected", "connected", "reported", "number_received"];
+export const CLAIM_STATUSES = ["not_connected", "trying", "connected", "reported", "number_received"];
 export const CLAIM_SCOPES = ["own_damage", "other_damage", "injury"];
 export const DRAFT_DEFAULTS = {
   location: "", incidentAt: "", statement: "", injuryStatus: "unknown", injuryNote: "", towing: "unknown", dashcam: "unknown",
   claimStatus: "not_connected", claimNumber: "", agent: "", scopes: [],
+  contactDirty: false,
 };
 
 export function normalizeDraft(value) {
   const input = isObject(value) ? value : {};
   const result = { ...DRAFT_DEFAULTS, scopes: [] };
+  result.contactDirty = input.contactDirty === true;
   for (const [key, max] of Object.entries({ location: 300, incidentAt: 30, statement: 2000, injuryNote: 500, claimNumber: 100, agent: 200 })) {
     result[key] = typeof input[key] === "string" ? input[key].trim().slice(0, max) : "";
   }
@@ -70,9 +72,15 @@ export function remainingTasks(view, value) {
   if (!draft.statement && !infoFact(view.session.info, "statement").value) tasks.push({ id: "statement", key: "wrap.task.statement" });
   if (draft.injuryStatus === "unknown") tasks.push({ id: "injuries", key: "wrap.task.injuries" });
   if (!draft.claimNumber) tasks.push({ id: "claimNumber", key: "wrap.task.claimNumber" });
-  if (["not_connected", "connected"].includes(draft.claimStatus)) tasks.push({ id: "claimStatus", key: "wrap.task.claimStatus" });
-  if (!draft.scopes.length) tasks.push({ id: "scopes", key: "wrap.task.scopes" });
-  if (draft.injuryStatus === "mentioned" && !draft.scopes.includes("injury")) tasks.push({ id: "injuryScope", key: "wrap.task.injuryScope" });
+  if (["not_connected", "trying", "connected"].includes(draft.claimStatus)) tasks.push({ id: "claimStatus", key: "wrap.task.claimStatus" });
+  const checks = view.summary?.coverage_rows;
+  if (Array.isArray(checks) && checks.length) {
+    for (const row of checks) if (row.state !== "confirmed") tasks.push({ id: `coverage:${row.id}`, key: "handover.task", vars: { name: row.label } });
+    if (draft.injuryStatus === "mentioned" && !checks.some((row) => row.id === "injury_claim" && row.state === "confirmed")) tasks.push({ id: "injuryScope", key: "wrap.task.injuryScope" });
+  } else {
+    if (!draft.scopes.length) tasks.push({ id: "scopes", key: "wrap.task.scopes" });
+    if (draft.injuryStatus === "mentioned" && !draft.scopes.includes("injury")) tasks.push({ id: "injuryScope", key: "wrap.task.injuryScope" });
+  }
   return tasks;
 }
 
@@ -98,9 +106,11 @@ export function recordSnapshot(view, profile, coverage, value, previous = null, 
   // Store the summary and structured observations, never audio, transcripts, questions, or image bytes.
   return {
     version: 1, id: view.session.id, createdAt: view.session.created_at, updatedAt: now, completed: previous?.completed === true,
+    followups: previous?.followups || [],
     profile: normalizeProfile(profile), coverage, draft: normalizeDraft(value),
     view: {
-      session: { id: view.session.id, created_at: view.session.created_at, info: view.session.info || {} },
+      session: { id: view.session.id, created_at: view.session.created_at, info: view.session.info || {},
+        hit: view.session.hit || {}, coverage: view.session.coverage || {}, contact: view.session.contact || {} },
       checklist: (view.checklist || []).map(({ id, title, core, status }) => ({ id, title, core, status })),
       summary: view.summary || { sections: [] }, summary_text: view.summary_text || "",
     },

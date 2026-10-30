@@ -19,6 +19,7 @@ function modeOption(ctx, value, iconName, titleKey, subKey, current) {
 
 export function coachSetupScreen(ctx) {
   const prefs = ctx.state.get().coachPrefs;
+  const tellFirst = ctx.state.get().coachProtocol?.tell_first || t("coach.tell.text");
   const goNoTalk = () => ctx.update({ overlay: "no-talk" });
   const begin = () => startTalk(ctx);
 
@@ -36,7 +37,7 @@ export function coachSetupScreen(ctx) {
         h("span", {}, h("span", { class: "ai-title" }, t("coach.ai.title")), h("span", { class: "ai-sub" }, t("coach.ai.sub")))),
       h("div", { class: "tell" },
         h("p", { class: "tell-label" }, t("coach.tell.title")),
-        h("p", { class: "tell-text" }, `"${t("coach.tell.text")}"`)),
+        h("p", { class: "tell-text" }, `"${tellFirst}"`)),
     ],
     actions: [
       { label: t("coach.start"), icon: "ear", kind: "primary", onClick: begin },
@@ -44,7 +45,7 @@ export function coachSetupScreen(ctx) {
     ],
     voice: {
       key: "coach-setup",
-      say: [t("coach.setup.title"), t("coach.tell.title"), t("coach.tell.text")],
+      say: [t("coach.setup.title"), t("coach.tell.title"), tellFirst],
       hint: t("listen.hint.coachSetup"),
       parse: (text) => matchCommand(text, SETUP_COMMANDS),
       run: (command) => { if (command === "start") begin(); else if (command === "notalk") goNoTalk(); },

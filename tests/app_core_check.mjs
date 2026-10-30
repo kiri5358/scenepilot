@@ -361,28 +361,24 @@ const commands = await core("commands.js");
   const coach = await core("coach.js");
   // every reminder the server and its rules can send has a kind
   const kinds = { hostile: "danger", drunk: "danger", pain: "danger", deal: "stop", sign: "stop", leaving: "stop", police: "stop",
-    fault: "stop", ask_contact: "info", ask_insurance: "info", ask_plate: "info", tone: "tone", ai: "tip", unknown_id: "tip" };
+    fault: "stop", coverage: "stop", refuse: "stop", uninsured: "stop", tow: "stop", ask_contact: "info", ask_insurance: "info", ask_plate: "info", tone: "tone", ai: "tip", unknown_id: "tip" };
   for (const [id, kind] of Object.entries(kinds)) assert.equal(coach.categoryOf(id), kind, id);
   for (const kind of ["danger", "stop", "info", "tone", "tip"]) assert.ok(coach.VIBRATION[kind].length >= 1, kind);
   assert.ok(coach.VIBRATION.danger.length > coach.VIBRATION.stop.length && coach.VIBRATION.stop.length > coach.VIBRATION.info.length,
     "the more urgent, the more vibration");
 
-  const plan = coach.planHint({ id: "deal", hint: " 현장에서 합의하지 않아도 돼요. " });
+  const protocol = { say: { deal: "서버에서 제공한 말할 문장", pain: "서버에서 제공한 부상 안내" }, severity: { deal: 2, pain: 3 } };
+  const plan = coach.planHint({ id: "deal", hint: " 현장에서 합의하지 않아도 돼요. " }, protocol);
   assert.deepEqual([plan.id, plan.category, plan.text], ["deal", "stop", "현장에서 합의하지 않아도 돼요."]);
-  assert.equal(plan.say, coach.SAY.deal);
+  assert.equal(plan.say, protocol.say.deal);
+  assert.equal(coach.planHint({ id: "deal", hint: "안내" }).say, null, "no frontend draft advice replaces missing server metadata");
   assert.equal(coach.planHint({ id: "ai", hint: "차분히 이야기해 보세요.", free: true }).say, null, "a sentence the model wrote has no 'you could say' line");
   assert.equal(coach.planHint({ id: "ask_plate", hint: "번호판을 찍어 두세요." }).say, null);
   assert.equal(coach.planHint({ id: "hostile", hint: "112에 신고하세요." }).say, null, "a threat has nothing to say back");
-  assert.ok(coach.planHint({ id: "pain", hint: "병원 진료를 고려하세요." }).say, "pain keeps a question to ask");
+  assert.ok(coach.planHint({ id: "pain", hint: "병원 진료를 고려하세요." }, protocol).say, "pain keeps a question to ask");
   assert.equal(coach.planHint({ id: "deal", hint: "  " }), null);
   assert.equal(coach.planHint(null), null);
   assert.equal(coach.planHint({ hint: "x" }).id, "ai", "a hint without an id is the model's own");
-
-  // nothing the person may say contains a judgment of fault, an amount, or medical advice
-  for (const [id, sentence] of Object.entries(coach.SAY)) {
-    assert.ok(!/[0-9]/.test(sentence) || /119|112/.test(sentence), `${id}: no numbers except 112 and 119`);
-    assert.ok(!/(과실|잘못|원|만원|합의금|진단|치료|병원)/.test(sentence), `${id}: no fault, money or medical words`);
-  }
 
   assert.equal(coach.dangerVariant("pain").firstCall, "119", "with pain the ambulance comes first");
   assert.equal(coach.dangerVariant("hostile").firstCall, "112");
@@ -417,4 +413,5 @@ const commands = await core("commands.js");
 await import("./app_coach_check.mjs");
 await import("./app_wrap_check.mjs");
 await import("./app_settings_check.mjs");
+await import("./app_handover_check.mjs");
 console.log("app core checks passed");

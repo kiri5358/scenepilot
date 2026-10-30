@@ -27,6 +27,17 @@ def test_core_logic():
     assert "app core checks passed" in run.stdout
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_current_backend_coaching_protocol_reaches_the_new_gui():
+    protocol = client.get("/api/watch-rules?country=KR").json()
+    run = subprocess.run(
+        ["node", str(SCRIPT.with_name("app_handover_check.mjs")), "--protocol"],
+        input=json.dumps(protocol, ensure_ascii=False), capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert run.returncode == 0, run.stderr + run.stdout
+    assert "app handover checks passed" in run.stdout
+
+
 def test_index_references_existing_files():
     html = (APP / "index.html").read_text(encoding="utf-8")
     refs = re.findall(r'(?:href|src)="(/static/app/[^"]+)"', html)

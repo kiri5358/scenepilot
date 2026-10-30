@@ -14,6 +14,7 @@ const MAX_HEARD_CHARS = 70;
 
 let handle = null;
 let rules = null;
+let protocol = {};
 let cooldown = 30;
 let poller = null;
 let current = null;   // { ctx, mode, ai }
@@ -31,11 +32,13 @@ function setCoach(patch) {
   ctx.update({ coach: { ...ctx.state.get().coach, ...patch } });
 }
 
-async function loadRules() {
-  if (rules) return;
+export async function loadProtocol() {
+  if (rules) return protocol;
   const r = await api("/api/watch-rules?country=KR");
-  rules = r.rules;
+  rules = r.rules || [];
+  protocol = r;
   cooldown = r.cooldown_seconds || 30;
+  return protocol;
 }
 
 // What the server's coach says about the last sentences. Details it heard are kept by the server as unconfirmed
@@ -72,7 +75,7 @@ function showHeard(text) {
 }
 
 function onHint(run, rule, done) {
-  const plan = planHint(rule);
+  const plan = planHint(rule, protocol);
   if (!plan || activeRun !== run) { done(); return; }
   const { ctx, mode } = run;
   vibrate(plan.pattern);
@@ -104,13 +107,13 @@ export async function start(ctx, { mode, ai }) {
   current = run;
   if (!isSupported()) { setCoach({ status: "unsupported" }); return false; }
   activeRun = run;
-  try { await loadRules(); } catch { rules = []; }
+  try { await loadProtocol(); } catch { /* retry on the next start; manual details remain usable */ }
   if (activeRun !== run) return false;
   await keepAwake();
   if (activeRun !== run) return false;
   setCoach({ status: "listening", aiError: false });
   const started = watcher().start({
-    speech: speech(), rules, cooldownSeconds: cooldown, compact: true,
+    speech: speech(), rules: rules || [], cooldownSeconds: cooldown, compact: true,
     coach: ai ? { send: (text, seconds) => sendToCoach(run, text, seconds), windowChars: 500, minGapMs: 2500 } : null,
     onHint: (rule, done) => onHint(run, rule, done),
     onStatus: (status) => { if (activeRun === run) onStatus(status); },

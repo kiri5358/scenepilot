@@ -35,6 +35,7 @@ const state = createState({
   lastPhoto: null,     // the result of the photo just sent: { itemId, accepted, message, observations }
   qa: [],              // questions asked and the server's answers, newest first
   coachPrefs: getCoachPrefs(),   // how coaching is received: { mode: "screen" | "ear", ai: boolean }
+  coachProtocol: null,
   coach: { status: "paused", hint: null, danger: null, aiError: false },   // the talk coaching in progress
   cardMsg: true,       // show "I would like to handle this through insurance" on the card shown to the other driver
   cardReturnOverlay: null,   // the screen to return to after showing the other driver our card
@@ -114,6 +115,7 @@ async function boot() {
   await Promise.all([setLang(settings.lang), loadClips()]);
   render(state.get());
   checkOngoing(ctx);
+  coachSession.loadProtocol().then((coachProtocol) => state.update({ coachProtocol })).catch(() => {});
 }
 
 boot();

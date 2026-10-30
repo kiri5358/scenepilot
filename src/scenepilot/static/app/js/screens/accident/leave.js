@@ -6,6 +6,7 @@ import { infoRows } from "../../core/coach.js";
 import { act } from "../../flows/stage.js";
 import { openInfoSheet } from "../coach/info-sheet.js";
 import { editScene, taskList } from "./wrap-shared.js";
+import { handoverChecks, uninsuredCard, followupPanel } from "../../ui/handover.js";
 
 export function leaveScreen(ctx) {
   const { data, busy } = ctx.state.get();
@@ -28,6 +29,7 @@ export function leaveScreen(ctx) {
       h("section", { class: "card" }, h("h2", { class: "h2" }, t("wrap.serverCheck")),
         h("ul", { class: "wrap-tasks" }, (data.summary?.leave_check || []).map((line) => h("li", {}, line)))),
       h("details", { class: "card" }, h("summary", {}, t("wrap.remaining")), taskList(data, draft)),
+      ...handoverChecks(ctx), uninsuredCard(data), followupPanel(ctx),
       h("p", { class: "wrap-note" }, t("wrap.leaveNote")),
     ],
     actions: [

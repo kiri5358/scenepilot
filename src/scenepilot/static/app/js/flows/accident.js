@@ -1,6 +1,6 @@
 // Starting, resuming and leaving an accident. The session lives on the server; this phone only remembers its id.
 import { ApiError, getSession, startSession } from "../core/api.js";
-import { getSessionId, hasConsent, saveSessionId, getRecords } from "../core/store.js";
+import { getSessionId, hasConsent, saveSessionId, getRecords, hydrateWrapDraft } from "../core/store.js";
 import { t } from "../core/i18n.js";
 import { askConsent } from "./consent.js";
 
@@ -28,12 +28,14 @@ export async function startAccident({ state, update }) {
 // Open the accident again from the home screen.
 export async function resumeAccident({ state, update }) {
   const current = state.get();
-  if (current.data) { update({ mode: "accident", overlay: null }); return; }
+  if (current.data) { hydrateWrapDraft(current.data); update({ mode: "accident", overlay: null }); return; }
   const id = getSessionId();
   if (!id) return;
   update({ busy: t("busy.starting"), error: null });
   try {
-    update({ mode: "accident", overlay: null, data: await getSession(id), busy: null });
+    const data = await getSession(id);
+    hydrateWrapDraft(data);
+    update({ mode: "accident", overlay: null, data, busy: null });
   } catch (error) {
     update({ busy: null, error: errorMessage(error) });
   }

@@ -76,11 +76,11 @@ try {
   // No restrictions on saving an incomplete call; unknowns must survive into the record.
   const beforeFailure = ctx.state.get().data;
   store.useBackend({ ...backend, setItem() { throw new Error("quota"); } });
-  assert.equal(saveFinalRecord(ctx), false);
+  assert.equal(await saveFinalRecord(ctx), false);
   assert.equal(ctx.state.get().data, beforeFailure, "failed saves keep the accident and inputs open");
   assert.equal(store.getSessionId(), "wrap-one", "failed saves must not clear the active session id");
   store.useBackend(backend);
-  assert.equal(saveFinalRecord(ctx), true);
+  assert.equal(await saveFinalRecord(ctx), true);
   assert.equal(store.getSessionId(), null);
   assert.equal(ctx.state.get().tab, "records");
   assert.equal(ctx.state.get().data, null);

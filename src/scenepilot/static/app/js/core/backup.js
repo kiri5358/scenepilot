@@ -1,6 +1,7 @@
 // Backups contain only supported personal fields and saved snapshots. No session ids, consent, settings or raw media.
 import { PROFILE_FIELDS, COVERAGES, COVERAGE_VALUES, isObject, normalizeProfile, normalizeCoverage, validPolicyDates } from "./insurance.js";
 import { CLAIM_STATUSES, CLAIM_SCOPES, normalizeDraft } from "./wrap.js";
+import { HIT_STATES, COVERAGE_STATES, FOLLOWUP_MAX, FOLLOWUP_CHARS } from "./handover.js";
 
 export const MAX_BACKUP_BYTES = 2 * 1024 * 1024;
 export const MAX_RECORDS = 200;
@@ -36,6 +37,40 @@ function draft(value) {
   return normalizeDraft(value);
 }
 
+function notes(value = []) {
+  return list(value, FOLLOWUP_MAX).map((item) => ({ time: text(object(item).time, 100), text: text(item.text, FOLLOWUP_CHARS), ...(item.local === true ? { local: true } : {}) }));
+}
+function choices(value, allowed, states) {
+  const result = {};
+  if (value === undefined) return result;
+  for (const [id, state] of Object.entries(object(value))) if (allowed.includes(id)) { requireValue(states.includes(state)); result[id] = state; }
+  return result;
+}
+function handover(summary) {
+  const rows = (value = [], states) => list(value, 20).map((row) => {
+    object(row); requireValue(states.includes(row.state));
+    return { id: text(row.id, 100), label: text(row.label, 500), state: row.state, state_label: text(row.state_label, 300) };
+  });
+  const result = { call_card: strings(summary.call_card), hit_rows: rows(summary.hit_rows, HIT_STATES),
+    coverage_rows: rows(summary.coverage_rows, COVERAGE_STATES), followups: notes(summary.followups), titles: {} };
+  for (const key of ["coverage", "coverage_note", "hit", "call", "call_note", "followup", "followup_note"]) {
+    if (summary.titles?.[key] !== undefined) result.titles[key] = text(summary.titles[key]);
+  }
+  if (summary.contact) {
+    const c = object(summary.contact);
+    requireValue(["before", "trying", "connected", "told"].includes(c.state));
+    result.contact = { state: c.state, state_label: text(c.state_label), number: text(c.number || "", 40), agent: text(c.agent || "", 40),
+      title: text(c.title || ""), note: text(c.note || ""), warning: c.warning ? text(c.warning) : null, states: {} };
+    for (const state of ["before", "trying", "connected", "told"]) if (c.states?.[state]) result.contact.states[state] = text(c.states[state], 300);
+  }
+  if (summary.uninsured) {
+    const u = object(summary.uninsured), source = object(u.source);
+    requireValue(text(source.url, 2000).startsWith("https://"));
+    result.uninsured = { title: text(u.title), lines: strings(u.lines), source: { title: text(source.title), url: source.url } };
+  }
+  return result;
+}
+
 function record(value) {
   object(value); requireValue(value.version === 1 && /^[a-zA-Z0-9_-]{1,100}$/.test(text(value.id, 100)) && typeof value.completed === "boolean");
   const view = object(value.view), session = object(view.session), info = {};
@@ -47,13 +82,16 @@ function record(value) {
   }
   const summary = object(view.summary);
   return { version: 1, id: value.id, createdAt: date(value.createdAt), updatedAt: date(value.updatedAt), completed: value.completed,
+    followups: notes(value.followups), ...(typeof value.contactSynced === "boolean" ? { contactSynced: value.contactSynced } : {}),
     profile: profile(value.profile), coverage: coverage(value.coverage), draft: draft(value.draft),
-    view: { session: { id: value.id, created_at: date(session.created_at), info },
+    view: { session: { id: value.id, created_at: date(session.created_at), info,
+      hit: choices(session.hit, ["vehicle", "facility", "person"], HIT_STATES),
+      coverage: choices(session.coverage, ["my_insurer", "other_insurer", "vehicle_claim", "injury_claim", "number"], COVERAGE_STATES) },
       checklist: list(view.checklist, 50).map((slot) => {
         object(slot); requireValue(typeof slot.core === "boolean" && ["pending", "captured", "needs_retake", "skipped"].includes(slot.status));
         return { id: text(slot.id, 100), title: text(slot.title, 300), core: slot.core, status: slot.status };
       }),
-      summary: { sections: list(summary.sections, 50).map((section) => ({ title: text(object(section).title, 300),
+      summary: { ...handover(summary), sections: list(summary.sections, 50).map((section) => ({ title: text(object(section).title, 300),
         items: list(section.items).map((item) => {
           object(item); requireValue(SOURCES.includes(item.source));
           return { label: text(item.label, 500), value: text(item.value), source: item.source };

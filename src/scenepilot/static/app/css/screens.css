@@ -78,6 +78,9 @@
 .records-item { width: 100%; text-align: left; cursor: pointer; }
 .records-back { align-self: flex-start; }
 .records-summary-item { display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.handover-choice { padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.handover-read { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line-soft); font-size: var(--fs-small); }
+.followup-note { padding: 12px; border-left: 3px solid var(--amber); background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---------- Consent sheet ---------- */
 .promises { display: flex; flex-direction: column; gap: 10px; padding: 0; list-style: none; }

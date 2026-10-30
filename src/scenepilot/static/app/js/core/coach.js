@@ -6,7 +6,7 @@
 
 // Kinds, from most to least urgent. danger takes over the screen; stop and info are shown as the coach's line.
 export const DANGER_IDS = ["hostile", "drunk", "pain"];
-export const STOP_IDS = ["deal", "sign", "leaving", "police", "fault"];
+export const STOP_IDS = ["deal", "sign", "leaving", "police", "fault", "coverage", "refuse", "uninsured", "tow"];
 export const INFO_IDS = ["ask_contact", "ask_insurance", "ask_plate"];
 
 export function categoryOf(id) {
@@ -26,29 +26,17 @@ export const VIBRATION = {
   tip: [200],
 };
 
-// The sentence the person may say, shown big. It is something the other driver can read too: no judgment of fault,
-// no money, no medical advice. A reminder with no entry has no sentence (a danger card, or a tip from the model).
-// DRAFT wording from docs/local/41; it belongs on the server next to the reminders (kr.py) and moves there later.
-export const SAY = {
-  pain: "많이 불편하시면 119를 부를게요. 지금 어디가 불편하세요?",
-  deal: "보험사에 먼저 확인하고 결정하겠습니다.",
-  sign: "무슨 내용인지 먼저 읽어 보고, 보험사에 확인한 뒤 서명할게요.",
-  leaving: "가시기 전에 연락처와 보험사만 서로 알려 드려요.",
-  police: "경찰에 신고해서 같이 확인받는 게 좋겠습니다.",
-  fault: "제가 본 상황만 말씀드릴게요. 책임은 조사 후에 정해질 거예요.",
-  tone: "잠깐 진정하고, 확인할 것만 차례로 정리해요.",
-  ask_contact: "성함과 연락처 알려 주시겠어요? 저도 알려 드릴게요.",
-  ask_insurance: "보험사가 어디세요? 서로 보험 접수하고 연락처 주고받을까요?",
-};
-
 // hint: { id, hint } from the server or a rule. Returns what the screen needs, or null when there is nothing to show.
-export function planHint(hint) {
+// say/severity come from /api/watch-rules, alongside the fixed rules. No duplicate advice lives in the frontend.
+export function planHint(hint, protocol = {}) {
   if (!hint || !hint.hint || !String(hint.hint).trim()) return null;
   const id = hint.id || "ai";
-  const category = categoryOf(id);
+  const severity = protocol.severity?.[id];
+  const category = DANGER_IDS.includes(id) || severity === 3 ? "danger" : severity === 2 ? "stop" : categoryOf(id);
+  const sentence = protocol.say?.[id];
   return {
     id, text: String(hint.hint).trim(), category,
-    say: category === "danger" && id !== "pain" ? null : SAY[id] || null,
+    say: id === "ai" || category === "danger" && id !== "pain" ? null : typeof sentence === "string" ? sentence : null,
     pattern: VIBRATION[category],
   };
 }
