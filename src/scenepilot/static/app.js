@@ -844,8 +844,14 @@ function voiceContext() {
 
 const QUICK_ANSWER = /\b(yes|yeah|yep|yup|no|nope|nah|nobody|not sure|unsure|don't know|maybe)\b/;
 // Korean: an answer word anywhere in the sentence (endings attach to the stem, so there are no word boundaries).
-const QUICK_ANSWER_KR = /네|예|응|넵|아니|아뇨|없어|없습니다|있어|있습니다|모르겠|몰라|괜찮|맞아|그래/;
-const isQuickAnswer = (t) => (isKr() ? QUICK_ANSWER_KR.test(Speech.normalize(t)) : QUICK_ANSWER.test(Speech.normalize(t)));
+const QUICK_ANSWER_KR = /네|예|응|넵|아니|아뇨|아냐|아닙|없어|없습니다|있어|있습니다|모르겠|몰라|괜찮|맞아|그래|옮길 ?수|못 ?옮|안 ?돼|움직일 ?수|못 ?움직/;
+// A one-word "yes" that the recognizer wrote as a sound-alike counts only when it is the whole sentence: a bare "내" inside
+// the question the phone is reading ("내 차를 ...") must not be mistaken for an answer.
+const QUICK_ALIKE_KR = /^(?:[내네녜레옝넹넵옙]\s?){1,2}$/;
+const isQuickAnswer = (t) => {
+  const n = Speech.normalize(t);
+  return isKr() ? QUICK_ANSWER_KR.test(n) || QUICK_ALIKE_KR.test(n) : QUICK_ANSWER.test(n);
+};
 
 function rawVoiceContext() {
   if (state.view === "ask") {
