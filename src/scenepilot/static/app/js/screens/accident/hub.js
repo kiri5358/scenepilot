@@ -8,6 +8,7 @@ import { HUB_COMMANDS } from "../../core/commands.js";
 import { act } from "../../flows/stage.js";
 import { matchCommand } from "../../services/voice.js";
 import { openSteps } from "./steps-sheet.js";
+import { beginWrap } from "../../flows/wrap.js";
 
 function option({ icon: iconName, title, sub, main = false, disabled = false, onClick }) {
   return h("button", { type: "button", class: main ? "option option--main" : "option", disabled: disabled ? true : null, onclick: onClick },
@@ -22,7 +23,7 @@ export function hubScreen(ctx) {
 
   const startTalk = () => ctx.update({ overlay: "coach-setup" });
   const morePhotos = () => { if (left > 0) act(ctx, "goto", { target: "photos" }); };
-  const finish = () => act(ctx, "goto", { target: "summary" });
+  const finish = () => beginWrap(ctx);
   const ask = () => ctx.update({ overlay: "ask" });
 
   return {

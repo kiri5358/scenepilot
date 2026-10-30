@@ -6,6 +6,7 @@ import { openSheet } from "../../ui/sheet.js";
 import { t } from "../../core/i18n.js";
 import { extraLeft } from "../../core/photos.js";
 import { act } from "../../flows/stage.js";
+import { beginWrap } from "../../flows/wrap.js";
 
 export async function openSteps(ctx) {
   const { data } = ctx.state.get();
@@ -23,7 +24,7 @@ export async function openSteps(ctx) {
   if (choice === "photos") act(ctx, "goto", { target: "photos" });
   else if (choice === "talk") ctx.update({ overlay: "coach-setup" });
   else if (choice === "ask") ctx.update({ overlay: "ask" });
-  else if (choice === "finish") act(ctx, "goto", { target: "summary" });
+  else if (choice === "finish") beginWrap(ctx);
 }
 
 function row(iconName, label, onClick) {

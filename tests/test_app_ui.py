@@ -77,7 +77,7 @@ def test_every_translation_key_used_in_code_exists():
     missing = sorted(key for key in used if key not in ko)
     assert not missing, missing
     # keys built from a template, such as t(`stage.${stage}`), are checked by their prefix
-    for prefix in ("stage.", "nav.", "steps.", "cov.", "home.help.", "consent.", "settings.", "listen.err.", "emergency.say.", "illus.", "stepsheet."):
+    for prefix in ("stage.", "nav.", "steps.", "cov.", "home.help.", "consent.", "settings.", "listen.err.", "emergency.say.", "illus.", "stepsheet.", "coach.info.ph.", "danger."):
         assert any(key.startswith(prefix) for key in ko), prefix
 
 
@@ -87,6 +87,8 @@ def test_translation_keys_named_as_text_exist():
     pattern = re.compile(r'"((?:safety|photos|guide|hub|emergency|listen|vb|coach|pending|busy|err|action|ask|stepsheet)\.[\w.]+)"')
     named = set()
     for path in js_files():
+        if path.relative_to(APP / "js").as_posix() == "screens/index.js":
+            continue   # its keys are screen ids ("coach.coach"), not words
         named |= set(pattern.findall(path.read_text(encoding="utf-8")))
     # a name may also be the start of a family of keys ("safety.danger" + ".yes")
     missing = sorted(key for key in named if key not in ko and not any(other.startswith(key + ".") for other in ko))

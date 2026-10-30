@@ -23,6 +23,8 @@ const PATHS = {
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 9"/>',
   ear: '<path d="M7 9a5 5 0 0110 0c0 3-3 3.5-3 6.5a2.5 2.5 0 01-5 0"/><path d="M10 9a2 2 0 014 0"/>',
   list: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  vibrate: '<rect x="8" y="4" width="8" height="16" rx="2"/><path d="M4 8v8M20 8v8"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
 };
 
 // ---------- Illustrations (fixed markup from assets/illustrations.js) ----------

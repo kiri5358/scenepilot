@@ -9,13 +9,23 @@ function sos() {
     h("a", { class: "call call--112", href: "tel:112", "aria-label": t("sos.112") }, "112"));
 }
 
-// variant: "home" | "accident";  showSos: boolean;  onBack, onSettings: functions
-export function appbar({ variant, showSos, onBack, onSettings }) {
-  const left = variant === "accident"
-    ? h("button", { type: "button", class: "back", onclick: onBack }, icon("back"), t("nav.home"))
-    : h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("alert", "ico--sm")), t("app.name"));
-  return h("header", { class: "appbar" },
+// variant: "home" | "accident" | "coach";  showSos: boolean;  onBack, onSettings: functions
+// live (coach only): { status: "listening" | "paused" | "error" | "unsupported" }, shown as a small pill in the middle
+const LIVE_LABEL = { listening: "coach.live", paused: "coach.paused", error: "coach.liveError", unsupported: "coach.liveError" };
+
+function livePill(live) {
+  const status = live && LIVE_LABEL[live.status] ? live.status : "paused";
+  return h("span", { class: `live live--${status}`, role: "status" }, h("span", { class: "live-dot" }), t(LIVE_LABEL[status]));
+}
+
+export function appbar({ variant, showSos, onBack, onSettings, live }) {
+  let left;
+  if (variant === "accident") left = h("button", { type: "button", class: "back", onclick: onBack }, icon("back"), t("nav.home"));
+  else if (variant === "coach") left = h("button", { type: "button", class: "back", onclick: onBack }, icon("back"), t("coach.leave"));
+  else left = h("div", { class: "brand" }, h("span", { class: "brand-mark" }, icon("alert", "ico--sm")), t("app.name"));
+  return h("header", { class: variant === "coach" ? "appbar appbar--coach" : "appbar" },
     left,
+    variant === "coach" ? livePill(live) : null,
     h("div", { class: "sos" },
       showSos ? sos() : null,
       h("button", { type: "button", class: "iconbtn", "aria-label": t("nav.settings"), onclick: onSettings }, icon("gear"))));

@@ -43,7 +43,8 @@ function insuranceCard(ctx) {
   const coverage = getCoverage();
   const headline = [clean(profile.insurer), clean(profile.plate)].filter(Boolean).join(" · ");
   const claims = clean(profile.claims_phone);
-  const filled = Boolean(headline || claims || clean(profile.policy));
+  const filled = Boolean(headline || claims || clean(profile.policy) || clean(profile.name) || clean(profile.phone)
+    || COVERAGES.some((id) => coverage[id] !== "unknown"));
   const toInsurance = () => ctx.update({ tab: "insurance" });
 
   const head = h("div", { class: "row" },

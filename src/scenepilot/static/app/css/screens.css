@@ -19,6 +19,66 @@
 /* ---------- Placeholder (a screen that is not built yet) ---------- */
 .todo-card { border-style: dashed; border-color: var(--line-strong); background: transparent; }
 
+/* ---------- Insurance ---------- */
+.insurance-summary { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px 12px; margin: 0; font-size: 15px; }
+.insurance-summary dt { color: var(--ink-2); }
+.insurance-summary dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.insurance-field { display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); font-size: 14px; font-weight: 700; }
+.insurance-field input, .insurance-field select, .insurance-field textarea {
+  width: 100%; min-width: 0; min-height: var(--tap); padding: 10px 12px;
+  border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px;
+}
+.insurance-source { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0; font-size: var(--fs-micro); color: var(--ink-2); }
+.insurance-source:empty { display: none; }
+.insurance-coverage { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.insurance-coverage-text { min-width: 0; }
+.insurance-coverage-name { margin: 0; font-size: 15px; font-weight: 700; }
+.insurance-coverage-desc { margin: 3px 0 0; font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.insurance-options { display: flex; flex: none; padding: 0; margin: 0; border: 0; }
+.insurance-options label { position: relative; }
+.insurance-options input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.insurance-options span { display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 6px;
+  border: 1px solid var(--line-strong); font-size: 13px; font-weight: 700; cursor: pointer; }
+.insurance-options label:first-of-type span { border-radius: 10px 0 0 10px; }
+.insurance-options label:last-of-type span { border-radius: 0 10px 10px 0; }
+.insurance-options label + label span { border-left: 0; }
+.insurance-options input:checked + span { background: var(--ink); color: #fff; }
+.insurance-options input[value="unknown"]:checked + span { background: var(--gray-soft); color: var(--ink); }
+.insurance-options input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; position: relative; z-index: 1; }
+.insurance-feedback { margin: 0; color: var(--green); font-size: var(--fs-small); line-height: 1.5; }
+.insurance-feedback:empty { display: none; }
+.insurance-feedback[role="alert"], .insurance-feedback[data-error="true"] { color: var(--ink); background: var(--amber-soft); padding: 12px; border-radius: 10px; }
+@media (max-width: 359px) { .insurance-coverage { align-items: flex-start; flex-direction: column; } }
+
+/* ---------- Leave / insurer call / saved records ---------- */
+.wrap-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 56px;
+  padding: 12px 0; border: 0; border-top: 1px solid var(--line-soft); text-align: left; background: transparent; cursor: pointer; }
+.wrap-check > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.wrap-check-value { display: block; margin-top: 4px; font-size: var(--fs-small); color: var(--ink-2); }
+.wrap-note { padding: 12px 14px; border-radius: var(--r-btn); background: var(--amber-soft); color: var(--amber-ink); font-size: var(--fs-small); line-height: 1.5; }
+.wrap-note:empty { display: none; }
+.wrap-tasks { display: flex; flex-direction: column; gap: 8px; padding-left: 20px; font-size: var(--fs-small); }
+.wrap-facts { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 0 12px; margin: 0; padding: 2px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); }
+.wrap-facts dt, .wrap-facts dd { margin: 0; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.wrap-facts dt:first-child, .wrap-facts dd:nth-child(2) { border-top: 0; }
+.wrap-facts dt { color: var(--ink-2); font-weight: 700; font-size: var(--fs-small); }
+.wrap-facts dd { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+.wrap-fact-value { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; white-space: pre-wrap; }
+.wrap-say { padding: 16px; border-radius: var(--r-card); background: var(--ink); color: #fff; }
+.wrap-say .eyebrow { color: var(--amber); margin-bottom: 8px; }
+.wrap-silent { padding: 10px var(--gutter); background: var(--gray-soft); font-size: var(--fs-micro); color: var(--ink-2); }
+.wrap-call-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 0; border: 0; }
+.wrap-call-status legend { margin-bottom: 8px; }
+.wrap-call-status label, .wrap-scopes label { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px; cursor: pointer; }
+.wrap-call-status label { background: var(--surface); border: 1.5px solid var(--line-strong); border-radius: var(--r-btn); font-size: var(--fs-small); font-weight: 700; }
+.wrap-call-status label:has(input:checked) { border-color: var(--ink); background: var(--amber-tint); }
+.wrap-call-status input, .wrap-scopes input { flex: none; width: 20px; height: 20px; accent-color: var(--ink); }
+.wrap-scopes { margin: 0; min-width: 0; }
+.records-item { width: 100%; text-align: left; cursor: pointer; }
+.records-back { align-self: flex-start; }
+.records-summary-item { display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* ---------- Consent sheet ---------- */
 .promises { display: flex; flex-direction: column; gap: 10px; padding: 0; list-style: none; }
 .promises li { display: flex; align-items: flex-start; gap: 10px; font-size: 16px; font-weight: 500; }
@@ -26,8 +86,11 @@
 .detail-list { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); color: var(--ink-2); }
 
 /* ---------- Settings sheet ---------- */
+.settings-section { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.settings-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; font-size: 15px; font-weight: 700; cursor: pointer; }
+.settings-toggle input { flex: none; width: 24px; height: 24px; accent-color: var(--ink); }
 .seg { display: flex; gap: 6px; padding: 0; border: 0; margin: 0; }
-.seg label { flex: 1; }
+.seg label { flex: 1; min-width: 0; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
 .seg span {
   display: flex; align-items: center; justify-content: center; min-height: var(--tap);
@@ -35,3 +98,24 @@
 }
 .seg input:checked + span { background: var(--ink); border-color: var(--ink); color: #fff; }
 .seg input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+/* ---------- Onboarding ---------- */
+.shell[data-tone="welcome"] { background: var(--ink); color: #fff; }
+.onboarding-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.onboarding-head .brand > .ico { color: var(--amber); }
+.onboarding-head .eyebrow, .shell[data-tone="welcome"] .muted { color: #c3cddb; }
+.onboarding-sos { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; justify-content: flex-end; background: var(--ink); padding: 4px 0; }
+.onboarding-title { font-size: 30px; font-weight: 900; line-height: 1.3; text-wrap: balance; }
+.onboarding-sub { color: #c3cddb; font-size: 17px; }
+.onboarding-feature { display: flex; align-items: flex-start; gap: 14px; padding: 8px 0; }
+.onboarding-feature > .ico { width: 32px; height: 32px; margin-top: 4px; color: var(--amber); }
+.onboarding-feature .muted { margin-top: 5px; }
+.onboarding-promise { display: flex; align-items: flex-start; gap: 10px; border-radius: 12px; padding: 14px; background: var(--ink-dim); }
+.onboarding-promise .ico { margin-top: 2px; color: var(--amber); }
+.onboarding-detail { padding: 14px; border: 1px solid #4a6285; border-radius: 12px; }
+.onboarding-detail summary { cursor: pointer; }
+.onboarding-detail .detail-list { margin-top: 12px; color: #c3cddb; }
+.onboarding-dots { display: flex; justify-content: center; gap: 6px; }
+.onboarding-dots button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.onboarding-dots span { display: block; width: 8px; height: 8px; border-radius: 5px; background: #4a6285; }
+.onboarding-dots [aria-current="step"] span { width: 26px; background: var(--amber); }

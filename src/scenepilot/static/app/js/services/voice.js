@@ -15,6 +15,7 @@ let control = null;
 let generation = 0;            // bumped by stop(): late callbacks of an older round do nothing
 let silent = 0;
 let misheard = 0;
+let handsFreeEnabled = get("handsfree") !== "off";
 
 const speech = () => (typeof Speech !== "undefined" ? Speech : null);   // the global from speech.js
 
@@ -30,8 +31,14 @@ export const commandTable = (name) => (speech() && speech().COMMANDS[name]) || n
 export const matchCommand = (text, table) => (speech() && table ? speech().match(text, table) : null);
 
 export const supported = () => Boolean(speech() && speech().supported());
-export const handsFree = () => get("handsfree") !== "off";
-export function setHandsFree(on) { set("handsfree", on ? "on" : "off"); emit(); }
+export const handsFree = () => handsFreeEnabled;
+export function setHandsFree(on) {
+  handsFreeEnabled = Boolean(on);
+  const saved = set("handsfree", on ? "on" : "off");
+  if (!on) stop();
+  emit();
+  return saved;
+}
 
 // A new moment on a new screen: show its hint and forget the last round's message.
 export function setHint(hint) { patch({ hint, message: null }); }

@@ -9,6 +9,8 @@ import { isShortCommand } from "../core/commands.js";
 
 let lastKey = null;
 let current = null;
+let suspended = false;
+let generation = 0;
 
 // The listening spec always calls the newest screen's code, because the screen is redrawn while the app reads.
 const live = () => ({
@@ -18,24 +20,27 @@ const live = () => ({
   run: (command, text, guesses) => current.run(command, text, guesses),
 });
 
-const wantsVoice = () => Boolean(current) && current.listen !== false && voice.handsFree();
+const wantsVoice = () => !suspended && Boolean(current) && current.listen !== false && voice.handsFree();
 
 export function narrate(spec) {
   current = spec || null;
+  if (suspended) return;
   if (!spec) {
+    generation += 1;
     if (lastKey !== null) { speaker.stop(); voice.stop(); lastKey = null; }
     return;
   }
   if (spec.key === lastKey) return;
   lastKey = spec.key;
   const key = spec.key;
+  const mine = ++generation;
   voice.stop();
   voice.resetCounters();
   voice.setHint(spec.hint);
   speaker.speak(spec.say || [], {
     onDone: () => {
-      if (lastKey !== key || !wantsVoice()) return;
-      setTimeout(() => { if (lastKey === key && current) voice.listen(live()); }, 300);
+      if (mine !== generation || lastKey !== key || !wantsVoice()) return;
+      setTimeout(() => { if (mine === generation && lastKey === key && wantsVoice()) voice.listen(live()); }, 300);
     },
   });
   if (wantsVoice() && current.barge !== false && speaker.isPlaying()) voice.listen(live(), { barge: true });
@@ -48,14 +53,15 @@ export function resumeListening() {
 
 // "Hear it again" from a spoken command or a button.
 export function repeat() {
-  if (!current) return;
+  if (!current || suspended) return;
   const key = lastKey;
+  const mine = ++generation;
   voice.stop();
   // sayFull: the longer version a screen may keep for "again" (the first reading only announces a long note by its title)
   speaker.speak(current.sayFull || current.say || [], {
     onDone: () => {
-      if (key !== lastKey || !wantsVoice()) return;
-      setTimeout(() => { if (key === lastKey && current) voice.listen(live()); }, 300);
+      if (mine !== generation || key !== lastKey || !wantsVoice()) return;
+      setTimeout(() => { if (mine === generation && key === lastKey && wantsVoice()) voice.listen(live()); }, 300);
     },
   });
   if (wantsVoice() && speaker.isPlaying()) voice.listen(live(), { barge: true });
@@ -63,7 +69,7 @@ export function repeat() {
 
 // The "Speak" button: listen now, even if listening was switched off.
 export function listenNow() {
-  if (!current) return;
+  if (!current || suspended) return;
   voice.setHandsFree(true);
   speaker.stop();
   voice.resetCounters();
@@ -74,3 +80,7 @@ export function stopListening() {
   voice.setHandsFree(false);
   voice.stop();
 }
+
+// Closing settings never turns the microphone back on by itself.
+export function suspend() { suspended = true; generation += 1; speaker.stop(); voice.stop(); }
+export function resume() { suspended = false; lastKey = current?.key || null; }

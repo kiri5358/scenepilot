@@ -1,6 +1,6 @@
 // Starting, resuming and leaving an accident. The session lives on the server; this phone only remembers its id.
 import { ApiError, getSession, startSession } from "../core/api.js";
-import { getSessionId, hasConsent, saveSessionId } from "../core/store.js";
+import { getSessionId, hasConsent, saveSessionId, getRecords } from "../core/store.js";
 import { t } from "../core/i18n.js";
 import { askConsent } from "./consent.js";
 
@@ -14,12 +14,12 @@ export function errorMessage(error) {
 
 export async function startAccident({ state, update }) {
   if (state.get().busy) return;
-  if (!hasConsent() && !(await askConsent())) return;
-  update({ busy: t("busy.starting"), error: null });
+  if (!hasConsent() && !state.get().consentAccepted && !(await askConsent())) return;
+  update({ busy: t("busy.starting"), error: null, notice: null });
   try {
     const data = await startSession();
     saveSessionId(data.session.id);
-    update({ mode: "accident", overlay: null, data, ongoing: null, busy: null, qa: [], guideItem: 0, lastPhoto: null });
+    update({ mode: "accident", overlay: null, data, ongoing: null, busy: null, qa: [], guideItem: 0, lastPhoto: null, callPhase: "prep", selectedRecordId: null, recordNotice: false });
   } catch (error) {
     update({ busy: null, error: errorMessage(error) });
   }
@@ -49,11 +49,13 @@ export function leaveToHome({ state, update }) {
 export async function checkOngoing({ update }) {
   const id = getSessionId();
   if (!id) return;
+  if (getRecords().some((record) => record?.id === id)) { saveSessionId(null); return; }
   try {
     const data = await getSession(id);
+    if (getSessionId() !== id) return;
     update({ data, ongoing: { stage: data.session.stage, createdAt: data.session.created_at } });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
+    if (getSessionId() === id && error instanceof ApiError && error.status === 404) {
       saveSessionId(null);
       update({ ongoing: "expired" });
     }

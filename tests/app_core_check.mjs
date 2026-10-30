@@ -23,6 +23,8 @@ const commands = await core("commands.js");
   assert.deepEqual(home.chrome, { appbar: "home", tabbar: true, step: null });
   assert.equal(router.resolve({ mode: "home", tab: "records" }).screen, "home.records");
   assert.equal(router.resolve({ mode: "home", tab: "nope" }).screen, "home.home", "an unknown tab falls back to home");
+  assert.equal(router.resolve({ mode: "home", tab: "home", onboardingOpen: true }).screen, "home.onboarding");
+  assert.equal(router.resolve({ mode: "accident", onboardingOpen: true, data: { session: { stage: "safety" } } }).screen, "accident.safety", "the introduction never replaces an accident screen");
   // accident mode without a server view cannot draw a stage: stay on home
   assert.equal(router.resolve({ mode: "accident", data: null }).screen, "home.home");
 
@@ -40,6 +42,9 @@ const commands = await core("commands.js");
   assert.equal(at("guide", "ask").chrome.step, 1, "and it keeps the step of the stage under it");
   assert.equal(at("hub", "coach").chrome.step, 3);
   assert.equal(at("summary", "leave").chrome.step, 4);
+  assert.equal(at("summary", "leave").screen, "accident.summary");
+  assert.equal(at("summary", "call-prep").screen, "accident.call-prep");
+  assert.equal(at("summary", "call-prep").chrome.step, 4);
   assert.equal(at("not-a-stage").chrome.step, 0, "an unknown stage counts as the first step");
 
   assert.deepEqual(router.stepStates(2).map((s) => s.state), ["done", "done", "current", "todo", "todo"]);
@@ -116,6 +121,68 @@ const commands = await core("commands.js");
   assert.deepEqual(store.getSettings(), store.DEFAULT_SETTINGS);
   store.useBackend(null);
   assert.equal(store.set("x", "1"), false, "no storage at all: writes report failure");
+}
+
+// ---------- insurance: migration, saving, and reload without touching the old UI's keys ----------
+{
+  const insurance = await core("insurance.js");
+  const memory = new Map([
+    ["scenepilot.profile", JSON.stringify({ insurer: "기존 보험사", plate: "12가 3456", vehicle: "흰색 SUV", home_state: "FL" })],
+    ["scenepilot.coverage", JSON.stringify({ own: "yes", property: "no" })],
+    ["scenepilot.sid", "active-accident"],
+  ]);
+  const oldKeys = new Map(memory);
+  const backend = { getItem: (k) => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: (k) => memory.delete(k) };
+  store.useBackend(backend);
+  assert.equal(store.getProfile().insurer, "기존 보험사");
+  assert.equal(store.getCoverage().own, "yes");
+  assert.equal(store.getCoverage().uninsured, "unknown");
+
+  const profile = { ...store.getProfile(), name: " 홍길동 ", phone: "010-0000-0000", insurer: "새 보험사", claims_phone: "1588-0000",
+    policy_start: "2026-01-01", policy_end: "2027-01-01" };
+  assert.equal(store.saveInsurance(profile), true);
+  assert.equal(store.getProfile().name, "홍길동");
+  assert.equal(store.getProfile().vehicle, "흰색 SUV");
+  assert.equal(store.saveCoverage({ own: "unknown", roadside: "yes" }), true);
+  store.useBackend(backend); // the next screen/tab reads the persisted snapshot
+  assert.equal(store.getProfile().claims_phone, "1588-0000");
+  assert.equal(store.getCoverage().own, "unknown");
+  assert.equal(store.getCoverage().property, "no");
+  assert.equal(store.getCoverage().roadside, "yes");
+  for (const [key, value] of oldKeys) assert.equal(memory.get(key), value, `${key} is read-only`);
+  memory.set("scenepilot.profile", JSON.stringify({ insurer: "changed in old UI" }));
+  assert.equal(store.getProfile().name, "홍길동", "old UI changes cannot erase newly saved personal details");
+  assert.equal(store.getProfile().insurer, "새 보험사");
+  assert.equal(store.saveInsurance({ ...store.getProfile(), name: "", insurer: "" }), true);
+  assert.equal(store.getProfile().name, "", "a deliberate blank is saved, rather than falling back to an old value");
+  assert.equal(store.getProfile().insurer, "");
+
+  const saved = memory.get("scenepilot.data");
+  store.useBackend({ ...backend, setItem() { throw new Error("quota exceeded"); } });
+  assert.equal(store.saveInsurance({ name: "not saved" }), false);
+  assert.equal(store.saveCoverage({ property: "yes" }), false);
+  assert.equal(memory.get("scenepilot.data"), saved, "a failed save leaves the previous snapshot intact");
+  store.useBackend(backend);
+  memory.delete("scenepilot.data");
+  for (const broken of ["invalid JSON", "[]", "null", '{"profile":[],"coverage":5}']) {
+    memory.set("scenepilot.insurance", broken);
+    assert.equal(store.getProfile().insurer, "changed in old UI");
+    assert.equal(store.getCoverage().own, "yes", "an invalid snapshot falls back to the old coverage entry");
+  }
+
+  assert.equal(insurance.pickedClaimsPhone("010-1234-0000", null, "1588-0000"), "010-1234-0000", "manual phone wins");
+  assert.equal(insurance.pickedClaimsPhone("", null, "1588-0000"), "1588-0000");
+  assert.equal(insurance.pickedClaimsPhone("1588-0000", "1588-0000", "1544-0000"), "1544-0000", "picker-filled numbers can follow a new selection");
+  assert.equal(insurance.phoneHref("1588-0000"), "tel:15880000");
+  assert.equal(insurance.phoneHref("+82 (10) 0000-0000"), "tel:+821000000000");
+  for (const text of ["", "12", "javascript:alert(1)", "1588-0000#123", "<script>"]) assert.equal(insurance.phoneHref(text), null);
+  assert.equal(insurance.validPolicyDates({ policy_start: "", policy_end: "" }), true);
+  assert.equal(insurance.validPolicyDates({ policy_start: "2026-01-01", policy_end: "2026-01-01" }), true);
+  assert.equal(insurance.validPolicyDates({ policy_start: "2026-12-01", policy_end: "2026-01-01" }), false);
+  assert.equal(insurance.validPolicyDates({ policy_start: "2026-02-30", policy_end: "" }), false);
+  assert.equal(insurance.normalizeProfile({ name: 42 }).name, "");
+  assert.deepEqual(Object.values(insurance.normalizeCoverage({ own: false })), insurance.COVERAGES.map(() => "unknown"));
+  store.useBackend(null);
 }
 
 // ---------- state ----------
@@ -289,6 +356,56 @@ const commands = await core("commands.js");
   assert.equal(commands.isShortCommand("안녕하세요", parse), false);
 }
 
+// ---------- talk coaching ----------
+{
+  const coach = await core("coach.js");
+  // every reminder the server and its rules can send has a kind
+  const kinds = { hostile: "danger", drunk: "danger", pain: "danger", deal: "stop", sign: "stop", leaving: "stop", police: "stop",
+    fault: "stop", ask_contact: "info", ask_insurance: "info", ask_plate: "info", tone: "tone", ai: "tip", unknown_id: "tip" };
+  for (const [id, kind] of Object.entries(kinds)) assert.equal(coach.categoryOf(id), kind, id);
+  for (const kind of ["danger", "stop", "info", "tone", "tip"]) assert.ok(coach.VIBRATION[kind].length >= 1, kind);
+  assert.ok(coach.VIBRATION.danger.length > coach.VIBRATION.stop.length && coach.VIBRATION.stop.length > coach.VIBRATION.info.length,
+    "the more urgent, the more vibration");
+
+  const plan = coach.planHint({ id: "deal", hint: " 현장에서 합의하지 않아도 돼요. " });
+  assert.deepEqual([plan.id, plan.category, plan.text], ["deal", "stop", "현장에서 합의하지 않아도 돼요."]);
+  assert.equal(plan.say, coach.SAY.deal);
+  assert.equal(coach.planHint({ id: "ai", hint: "차분히 이야기해 보세요.", free: true }).say, null, "a sentence the model wrote has no 'you could say' line");
+  assert.equal(coach.planHint({ id: "ask_plate", hint: "번호판을 찍어 두세요." }).say, null);
+  assert.equal(coach.planHint({ id: "hostile", hint: "112에 신고하세요." }).say, null, "a threat has nothing to say back");
+  assert.ok(coach.planHint({ id: "pain", hint: "병원 진료를 고려하세요." }).say, "pain keeps a question to ask");
+  assert.equal(coach.planHint({ id: "deal", hint: "  " }), null);
+  assert.equal(coach.planHint(null), null);
+  assert.equal(coach.planHint({ hint: "x" }).id, "ai", "a hint without an id is the model's own");
+
+  // nothing the person may say contains a judgment of fault, an amount, or medical advice
+  for (const [id, sentence] of Object.entries(coach.SAY)) {
+    assert.ok(!/[0-9]/.test(sentence) || /119|112/.test(sentence), `${id}: no numbers except 112 and 119`);
+    assert.ok(!/(과실|잘못|원|만원|합의금|진단|치료|병원)/.test(sentence), `${id}: no fault, money or medical words`);
+  }
+
+  assert.equal(coach.dangerVariant("pain").firstCall, "119", "with pain the ambulance comes first");
+  assert.equal(coach.dangerVariant("hostile").firstCall, "112");
+  assert.equal(coach.dangerVariant("drunk").reasonKey, "danger.reason.drunk");
+
+  // the checklist
+  const none = coach.infoRows({}, []);
+  assert.deepEqual(none.map((r) => r.field), ["other_contact", "other_plate", "other_insurance", "other_vehicle"]);
+  assert.ok(none.every((r) => r.kind === "unknown" && r.value === null));
+  const info = {
+    other_contact: { value: "010-1234-5678", source: "ai_observation", confirmed: false },
+    other_insurance: { value: "OO손해보험", source: "user_statement", confirmed: true },
+  };
+  const rows = coach.infoRows(info, []);
+  assert.deepEqual([rows[0].kind, rows[0].value], ["heard", "010-1234-5678"], "heard but not confirmed");
+  assert.deepEqual([rows[2].kind, rows[2].value], ["ok", "OO손해보험"], "confirmed");
+  const withPhoto = coach.infoRows({}, [{ id: "other_vehicle", status: "captured" }]);
+  assert.equal(withPhoto[1].kind, "ok", "a photo of the other car counts for its plate");
+  assert.equal(withPhoto[1].valueKey, "coach.row.photo");
+  assert.equal(coach.infoRows({}, [{ id: "other_vehicle", status: "skipped" }])[1].kind, "unknown");
+  assert.deepEqual(coach.DEFAULT_COACH_PREFS, { mode: "screen", ai: true });
+}
+
 // ---------- commands ----------
 {
   for (const [name, phrases] of Object.entries(commands.HUB_COMMANDS)) {
@@ -297,4 +414,7 @@ const commands = await core("commands.js");
   }
 }
 
+await import("./app_coach_check.mjs");
+await import("./app_wrap_check.mjs");
+await import("./app_settings_check.mjs");
 console.log("app core checks passed");

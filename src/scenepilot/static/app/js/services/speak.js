@@ -88,7 +88,8 @@ export function replay(onDone) {
 
 export function setEnabled(value) {
   enabled = Boolean(value);
-  set("voice", enabled ? "on" : "off");
+  const saved = set("voice", enabled ? "on" : "off");
   if (!enabled) stop();
   emit();
+  return saved;
 }

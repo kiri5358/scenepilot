@@ -33,11 +33,12 @@ export function stepStates(index) {
 }
 
 // Overlays that are not part of the talk coaching have their own screen id.
-const OVERLAY_SCREEN = { ask: "accident.ask" };
+const OVERLAY_SCREEN = { ask: "accident.ask", leave: "accident.summary", "call-prep": "accident.call-prep" };
 const overlayScreen = (overlay) => OVERLAY_SCREEN[overlay] || `coach.${overlay}`;
 
 // state: { mode: "home" | "accident", tab, overlay, data }  (data is the server's last view, or null)
 export function resolve(state) {
+  if (state.mode === "home" && state.onboardingOpen) return { screen: "home.onboarding", chrome: { appbar: "home", tabbar: false, step: null } };
   if (state.mode === "accident" && state.data) {
     const stage = state.data.session.stage;
     return {
