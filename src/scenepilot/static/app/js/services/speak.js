@@ -80,11 +80,35 @@ function deviceSpeak(text, next, mine) {
   window.speechSynthesis.speak(utterance);
 }
 
-function sayOne(text, next, mine) {
+// The clip of a sentence, already asked for: the browser starts loading it now, so the next sentence of a list has
+// arrived by the time the previous one ends (no pause between sentences). null: this sentence has no clip.
+function prepare(text) {
+  const language = getLang() === "en" ? "en" : "ko";
+  const file = clips[language][sentenceKey(text)];
+  if (!file || typeof Audio === "undefined") return null;
+  const audio = new Audio(CLIP_BASE[language] + file);
+  audio.preload = "auto";
+  audio.playbackRate = RATE;
+  return audio;
+}
+
+// Fetch the clips of the language in use in the background (low priority, one at a time). They are cached for good, so
+// from then on a sentence starts without waiting for the network.
+let warmedFor = "";
+export async function warmClips(language = getLang() === "en" ? "en" : "ko") {
+  if (warmedFor === language || typeof fetch === "undefined") return;
+  if (typeof navigator !== "undefined" && navigator.connection && navigator.connection.saveData) return;   // the person asked to save data
+  warmedFor = language;
+  for (const file of new Set(Object.values(clips[language] || {}))) {
+    try { await (await fetch(CLIP_BASE[language] + file, { priority: "low" })).blob(); } catch { return; /* offline: try again next time */ }
+  }
+}
+
+function sayOne(text, next, mine, ready) {
   const language = getLang() === "en" ? "en" : "ko";
   const file = clips[language][sentenceKey(text)];
   if (!file) { deviceSpeak(text, next, mine); return; }
-  const audio = new Audio(CLIP_BASE[language] + file);
+  const audio = ready || new Audio(CLIP_BASE[language] + file);
   audio.playbackRate = RATE;
   player = audio;
   let finished = false;
@@ -106,10 +130,11 @@ export function speak(parts, { force = false, onDone = null, remember = true } =
   const mine = token;
   playing = true;
   emit();
+  const ready = list.map(prepare);          // all the clips of this list start loading at once
   const step = (i) => {
     if (mine !== token) return;           // replaced by a newer speak(), or stopped
     if (i >= list.length) { playing = false; emit(); if (onDone) onDone(); return; }
-    sayOne(list[i], () => step(i + 1), mine);
+    sayOne(list[i], () => step(i + 1), mine, ready[i]);
   };
   step(0);
 }

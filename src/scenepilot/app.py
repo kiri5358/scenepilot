@@ -43,9 +43,12 @@ add_cors(app, get_settings().cors_origins)
 class NoCacheStaticFiles(StaticFiles):
     """Static files that the browser must revalidate every time, so phones never run an old script or stylesheet."""
 
-    def file_response(self, *args, **kwargs) -> Response:
-        response = super().file_response(*args, **kwargs)
-        response.headers["Cache-Control"] = "no-cache"
+    def file_response(self, full_path, *args, **kwargs) -> Response:
+        response = super().file_response(full_path, *args, **kwargs)
+        # A spoken clip is named by a hash of its voice and text, so its file never changes: the browser may keep it for good.
+        # (Without this every sentence cost a round trip to the server before it could start, and the voice paused between sentences.)
+        immutable = str(full_path).lower().endswith(".mp3") and "audio" in str(full_path).replace("\\", "/").split("/")
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if immutable else "no-cache"
         return response
 
 

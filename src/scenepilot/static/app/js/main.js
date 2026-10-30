@@ -12,7 +12,7 @@ import { voiceBars } from "./ui/voicebar.js";
 import { getScreen } from "./screens/index.js";
 import { openSettings } from "./screens/home/settings.js";
 import { checkOngoing, leaveToHome } from "./flows/accident.js";
-import { loadClips } from "./services/speak.js";
+import { loadClips, warmClips } from "./services/speak.js";
 import { narrate } from "./services/narrator.js";
 import * as voice from "./services/voice.js";
 import * as coachSession from "./services/coach-session.js";
@@ -115,6 +115,7 @@ async function boot() {
   voice.init();
   render(state.get());
   checkOngoing(ctx);
+  setTimeout(() => warmClips(), 2500);   // after the first screen: keep the spoken clips ready so sentences follow each other without pauses
   coachSession.loadProtocol().then((coachProtocol) => state.update({ coachProtocol })).catch(() => {});
 }
 

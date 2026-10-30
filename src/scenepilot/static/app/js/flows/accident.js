@@ -1,15 +1,13 @@
 // Starting, resuming and leaving an accident. The session lives on the server; this phone only remembers its id.
-import { ApiError, getSession, startSession } from "../core/api.js";
+import { ApiError, errorKey, getSession, startSession } from "../core/api.js";
 import { getSessionId, hasConsent, saveSessionId, getRecords, hydrateWrapDraft } from "../core/store.js";
 import { t } from "../core/i18n.js";
 import { askConsent } from "./consent.js";
 
 export function errorMessage(error) {
-  if (error instanceof ApiError) {
-    if (error.status === 0) return t("err.network");
-    if (error.status === 429) return t("err.busy");
-  }
-  return t("err.server");
+  const key = errorKey(error);
+  if (key === "err.sessionLost") saveSessionId(null);   // the id is useless now; the next accident starts a fresh session
+  return t(key);
 }
 
 export async function startAccident({ state, update }) {

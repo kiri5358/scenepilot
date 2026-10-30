@@ -30,6 +30,17 @@ export const post = (path, json) => api(path, {
   body: JSON.stringify(json ?? {}),
 });
 
+// Which message goes with a failed call. 404 on a session means the server no longer knows it: it keeps sessions in memory,
+// so a restart or a redeploy (or the free host going to sleep) removes them while the phone still remembers the id.
+export function errorKey(error) {
+  if (error instanceof ApiError) {
+    if (error.status === 0) return "err.network";
+    if (error.status === 429) return "err.busy";
+    if (error.status === 404) return "err.sessionLost";
+  }
+  return "err.server";
+}
+
 export const sessionPath = (id, action = "") => `/api/sessions/${encodeURIComponent(id)}${action ? "/" + action : ""}`;
 
 // The app is the Korea edition only: sessions are always country KR.

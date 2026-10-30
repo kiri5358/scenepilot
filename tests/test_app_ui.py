@@ -130,3 +130,21 @@ def test_moving_on_quickly_never_reads_the_old_sentence_on_top_of_the_new_one():
     run = subprocess.run(["node", str(SCRIPT.with_name("app_speak_check.mjs"))], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert run.returncode == 0, run.stderr + run.stdout
     assert "app speak checks passed" in run.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_a_session_the_server_lost_gets_its_own_message_not_a_generic_error():
+    run = subprocess.run(["node", str(SCRIPT.with_name("app_session_check.mjs"))], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert run.returncode == 0, run.stderr + run.stdout
+    assert "app session checks passed" in run.stdout
+
+
+def test_spoken_clips_are_cached_for_good_and_the_pages_are_not():
+    """A clip is named by a hash of its text, so it never changes: without long caching every sentence waited for a round trip."""
+    manifest = client.get("/static/audio/ko/manifest.json")
+    assert manifest.headers["cache-control"] == "no-cache"
+    clip = next(iter(manifest.json()["items"].values()))
+    r = client.get(f"/static/audio/ko/{clip}")
+    assert r.status_code == 200 and "immutable" in r.headers["cache-control"] and "max-age=31536000" in r.headers["cache-control"]
+    for path in ("/", "/static/app/js/main.js", "/static/app/i18n/ko.json"):
+        assert client.get(path).headers["cache-control"] == "no-cache", path

@@ -51,4 +51,11 @@ speaker.stop();
 await tick();
 assert.ok(spoken.length <= 1, "after stop() the rest of the list is not read");
 
+// 5. every clip of a list is asked for at once, so the next sentence has arrived when the previous one ends
+speaker.stop();
+const base = audios.length;
+speaker.speak(["첫 문장입니다.", "둘째 문장입니다.", "파일이 없는 문장입니다."], { force: true });
+assert.equal(audios.length - base, 2, "both clips of the list were created (and started loading) before the first one finished");
+assert.ok(audios.slice(base).every((a) => a.preload === "auto"), "they are marked to preload");
+speaker.stop();
 console.log("app speak checks passed");
