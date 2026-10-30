@@ -1,0 +1,40 @@
+/* The reading bar and the listening bar above the bottom buttons (ui/voicebar.js). */
+.voicebar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px var(--gutter); border-top: 1px solid var(--line); background: #e8eef8;
+  color: var(--ink); font-size: var(--fs-small); font-weight: 700;
+}
+.voicebar--off { background: var(--amber-soft); color: var(--amber-ink); }
+.voicebar-text { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.voicebar-buttons { display: flex; align-items: center; gap: 6px; flex: none; }
+.voicebar-btn {
+  min-height: 36px; padding: 0 14px; border: 1.5px solid var(--ink); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font-size: var(--fs-small); font-weight: 700; cursor: pointer;
+}
+.vol {
+  display: flex; align-items: center; justify-content: center; width: 44px; height: 40px;
+  border: 1.5px solid var(--ink); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer;
+}
+.vol--off { background: var(--ink); color: #fff; }
+.vol .ico { width: 20px; height: 20px; }
+
+.eq { display: flex; align-items: flex-end; gap: 2px; height: 14px; flex: none; }
+.eq i { display: block; width: 3px; border-radius: 2px; background: var(--blue); animation: eq 0.9s ease-in-out infinite; }
+.eq i:nth-child(1) { height: 8px; }
+.eq i:nth-child(2) { height: 14px; animation-delay: 0.15s; }
+.eq i:nth-child(3) { height: 10px; animation-delay: 0.3s; }
+@keyframes eq { 50% { transform: scaleY(0.5); } }
+
+.listenbar {
+  display: flex; align-items: center; gap: 10px; padding: 10px var(--gutter);
+  background: #e8eef8; font-size: 15px; font-weight: 500; color: var(--ink);
+}
+.listenbar--live { background: #dbe7fa; }
+.listenbar-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.heard-text { font-weight: 700; overflow-wrap: anywhere; }
+.pulse {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; border-radius: 16px; background: var(--blue); color: #fff;
+}
+.listenbar--live .pulse { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.55; } }

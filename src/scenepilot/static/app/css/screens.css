@@ -1,0 +1,37 @@
+/* Styles that belong to one screen. Keep each screen's rules together under its own heading. */
+
+/* ---------- Home ---------- */
+.start {
+  display: flex; align-items: center; gap: 16px; width: 100%; min-height: 132px; padding: 20px;
+  border: 0; border-radius: 20px; background: var(--amber); color: var(--ink); text-align: left; cursor: pointer;
+}
+.start:disabled { opacity: 0.6; cursor: progress; }
+.start-disc {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: 60px; height: 60px; border-radius: 30px; background: var(--ink); color: var(--amber);
+}
+.start-text { display: flex; flex-direction: column; gap: 4px; }
+.start-label { font-size: var(--fs-hero); font-weight: 900; line-height: 1.2; }
+.start-hint { font-size: 15px; font-weight: 500; }
+
+.private-note { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-small); color: var(--ink-2); }
+
+/* ---------- Placeholder (a screen that is not built yet) ---------- */
+.todo-card { border-style: dashed; border-color: var(--line-strong); background: transparent; }
+
+/* ---------- Consent sheet ---------- */
+.promises { display: flex; flex-direction: column; gap: 10px; padding: 0; list-style: none; }
+.promises li { display: flex; align-items: flex-start; gap: 10px; font-size: 16px; font-weight: 500; }
+.promises .ico { margin-top: 2px; color: var(--green); }
+.detail-list { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); color: var(--ink-2); }
+
+/* ---------- Settings sheet ---------- */
+.seg { display: flex; gap: 6px; padding: 0; border: 0; margin: 0; }
+.seg label { flex: 1; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span {
+  display: flex; align-items: center; justify-content: center; min-height: var(--tap);
+  border: 1.5px solid var(--line-strong); border-radius: var(--r-btn); font-weight: 700; cursor: pointer;
+}
+.seg input:checked + span { background: var(--ink); border-color: var(--ink); color: #fff; }
+.seg input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }

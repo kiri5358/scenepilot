@@ -1,0 +1,50 @@
+/* ScenePilot app: design tokens. Values come from docs/local/ScenePilot_화면목업_v1.html.
+   Colors carry meaning: red = 119 only, blue = 112 only, amber = attention / unconfirmed, green = confirmed, gray = unknown. */
+:root {
+  color-scheme: light;
+
+  --ink: #12263f;
+  --ink-2: #4f5a6b;
+  --ink-3: #5b6575;
+  --bg: #f3f5f8;
+  --bg-outer: #e6eaf0;
+  --surface: #ffffff;
+  --line: #dde2ea;
+  --line-soft: #eef1f5;
+  --line-strong: #c5ccd8;
+
+  --amber: #f2a900;
+  --amber-soft: #fff1c7;
+  --amber-tint: #fff6dc;
+  --amber-ink: #6b4a00;
+  --red: #c8321f;
+  --red-soft: #fdeae6;
+  --red-ink: #7d1f10;
+  --blue: #1f5fbf;
+  --green: #16603d;
+  --green-soft: #e2f3ea;
+  --gray-soft: #e9ecf1;
+  --gray-ink: #4a5568;
+  --ink-dim: #1e3656;
+
+  --font: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+
+  --fs-micro: 13px;
+  --fs-small: 14px;
+  --fs-body: 16px;
+  --fs-h2: 18px;
+  --fs-lead: 20px;
+  --fs-title: 24px;
+  --fs-say: 25px;
+  --fs-hero: 26px;
+
+  --r-card: 16px;
+  --r-btn: 12px;
+  --r-chip: 14px;
+  --r-sheet: 20px;
+
+  --tap: 48px;
+  --tap-lg: 56px;
+  --gutter: 16px;
+  --column: 480px;
+}
