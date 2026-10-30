@@ -25,7 +25,7 @@ Reply with ONE JSON object and nothing else, using exactly these keys:
   "sharpness": "clear | blurry | dark | unclear",
   "plate": "readable | not_readable | not_visible",
   "visible_damage": "none | minor | major | unclear",
-  "vehicle_count": integer or null,
+  "vehicle_count": integer (how many whole or partly visible vehicles are near the camera, including parked and moving ones; 0 if none; use null only if the photo is too unclear to count),
   "observations": ["short English sentences about what is visible (max 5)"],
   "unknown": ["short English phrases about what cannot be known from this photo (max 5)"],
   "retake_hint": "one short English sentence telling the user how to retake the photo, or null if the photo is sufficient"
