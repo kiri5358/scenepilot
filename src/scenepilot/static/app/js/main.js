@@ -2,7 +2,7 @@
 import { createState } from "./core/state.js";
 import { resolve, showSos, stepStates, TABS } from "./core/router.js";
 import { setLang, t } from "./core/i18n.js";
-import { getCoachPrefs, getSettings, getSessionId, hasOnboarding } from "./core/store.js";
+import { getCoachPrefs, getSettings, saveSettings, getSessionId, hasOnboarding } from "./core/store.js";
 import { h, mount } from "./ui/dom.js";
 import { appbar } from "./ui/appbar.js";
 import { tabbar } from "./ui/tabbar.js";
@@ -20,6 +20,10 @@ import * as coachSession from "./services/coach-session.js";
 // The overlays during which the phone keeps listening to the talk.
 const LISTENING_OVERLAYS = ["coach", "my-card"];
 
+// "?lang=en" (or "?lang=ko") picks the language before anything is drawn, so a link can open the app in English and the
+// first screen (the introduction) is already in that language. The choice is kept like one made in the settings.
+const requestedLang = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("lang");
+if (requestedLang === "en" || requestedLang === "ko") saveSettings({ lang: requestedLang });
 const settings = getSettings();
 const state = createState({
   mode: "home",        // "home" | "accident"

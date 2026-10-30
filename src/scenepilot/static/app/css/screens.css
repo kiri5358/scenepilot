@@ -122,3 +122,6 @@
 .onboarding-dots button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .onboarding-dots span { display: block; width: 8px; height: 8px; border-radius: 5px; background: #4a6285; }
 .onboarding-dots [aria-current="step"] span { width: 26px; background: var(--amber); }
+
+/* the language switch on the first screen */
+.lang-switch { margin-left: 12px; min-height: 32px; padding: 0 4px; font-weight: 700; }

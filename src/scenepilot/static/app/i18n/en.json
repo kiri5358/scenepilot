@@ -60,6 +60,7 @@
   "err.network": "Could not reach the server. Please try again in a moment.",
   "err.busy": "Too many requests. Please try again in a moment.",
   "err.sessionLost": "The server restarted, so this accident session is gone. Start a new accident from Home. Your saved insurance details and records on this phone are unchanged.",
+  "onboarding.langSwitch": "한국어",
   "err.server": "Something went wrong. Please try again in a moment.",
   "action.dismiss": "Dismiss",
   "consent.title": "Before you start",

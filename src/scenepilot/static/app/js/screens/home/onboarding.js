@@ -1,6 +1,8 @@
 import { h } from "../../ui/dom.js";
 import { icon } from "../../ui/icons.js";
-import { t } from "../../core/i18n.js";
+import { t, getLang, setLang } from "../../core/i18n.js";
+import { saveSettings } from "../../core/store.js";
+import * as speaker from "../../services/speak.js";
 import { finishOnboarding, acceptOnboarding, checkMicrophone } from "../../flows/onboarding.js";
 import { supported } from "../../services/voice.js";
 
@@ -16,7 +18,12 @@ export function onboardingScreen(ctx) {
     bare: true, tone: "welcome", focusKey: `onboarding:${step}`,
     body: [
       h("div", { class: "onboarding-head" }, h("span", { class: "brand" }, icon("shield"), "ScenePilot"),
-        h("span", { class: "eyebrow" }, t("onboarding.page", { n: step + 1, total: 4 }))),
+        h("span", { class: "eyebrow" }, t("onboarding.page", { n: step + 1, total: 4 }),
+          // the language can be changed on the very first screen, before the settings are reachable
+          h("button", { type: "button", class: "linkbtn lang-switch", lang: getLang() === "en" ? "ko" : "en", onclick: async () => {
+            const next = getLang() === "en" ? "ko" : "en";
+            await setLang(next); saveSettings({ lang: next }); ctx.update({ lang: next }); speaker.warmClips();
+          } }, t("onboarding.langSwitch")))),
       h("div", { class: "onboarding-sos" }, h("a", { href: "tel:119", class: "call call--119" }, "119"), h("a", { href: "tel:112", class: "call call--112" }, "112")),
       h("h1", { class: "onboarding-title" }, t(`onboarding.${page}.title`)),
       h("p", { class: "onboarding-sub" }, t(`onboarding.${page}.sub`)),

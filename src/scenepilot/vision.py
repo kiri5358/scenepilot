@@ -7,7 +7,7 @@ import re
 import time
 from dataclasses import dataclass
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, BadRequestError
 from pydantic import ValidationError
 
 from .config import Settings, get_settings
@@ -99,12 +99,24 @@ async def analyze_photo(
     last_error = "Unknown error"
     for _ in range(attempts):
         try:
-            resp = await client.chat.completions.create(
-                model=settings.vision_model,
-                messages=messages,
-                max_tokens=settings.vision_max_tokens,
-                temperature=0.1,
-            )
+            try:
+                # Thinking off. With it on, the model often spent all of its tokens on reasoning and returned nothing
+                # ("finish_reason=length", about 3 of 5 tries in our test, 6 to 13 s each); with it off every try answered in
+                # about 2 s with the same fields.
+                resp = await client.chat.completions.create(
+                    model=settings.vision_model,
+                    messages=messages,
+                    max_tokens=settings.vision_max_tokens,
+                    temperature=0.1,
+                    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                )
+            except BadRequestError:  # a model that does not take that option: ask it the plain way
+                resp = await client.chat.completions.create(
+                    model=settings.vision_model,
+                    messages=messages,
+                    max_tokens=settings.vision_max_tokens,
+                    temperature=0.1,
+                )
         except Exception as e:  # noqa: BLE001 - pass the cause to the caller as is
             last_error = f"Model call failed: {type(e).__name__}: {e}"
             continue
